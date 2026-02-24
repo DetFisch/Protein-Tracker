@@ -1,0 +1,121 @@
+add_protein:
+  name: Add Protein
+  description: Add consumed protein directly in grams.
+  fields:
+    entity_id:
+      name: Tracker Sensor Entity
+      description: Recommended. Example sensor.detjon_protein.
+      required: false
+      example: sensor.detjon_protein
+      selector:
+        entity:
+          domain: sensor
+    user_id:
+      name: Tracker ID
+      description: Optional fallback to target tracker by id.
+      required: false
+      example: user1
+      selector:
+        text:
+    grams:
+      name: Protein grams
+      description: Protein amount in grams.
+      required: true
+      example: 35
+      selector:
+        number:
+          min: 0.1
+          max: 1000
+          step: 0.1
+          mode: box
+
+add_food:
+  name: Add Food
+  description: Add consumed protein by entering food grams and protein per 100g.
+  fields:
+    entity_id:
+      name: Tracker Sensor Entity
+      description: Recommended. Example sensor.alex_protein.
+      required: false
+      example: sensor.alex_protein
+      selector:
+        entity:
+          domain: sensor
+    user_id:
+      name: Tracker ID
+      description: Optional fallback to target tracker by id.
+      required: false
+      example: user2
+      selector:
+        text:
+    food_grams:
+      name: Food grams
+      description: How many grams of this food were eaten.
+      required: true
+      example: 180
+      selector:
+        number:
+          min: 0.1
+          max: 5000
+          step: 0.1
+          mode: box
+    protein_per_100g:
+      name: Protein per 100g
+      description: Protein content of the food per 100 grams.
+      required: true
+      example: 22
+      selector:
+        number:
+          min: 0.1
+          max: 100
+          step: 0.1
+          mode: box
+
+set_goal:
+  name: Set Goal
+  description: Set the daily protein goal.
+  fields:
+    entity_id:
+      name: Tracker Entity
+      description: Recommended. Sensor or goal-number entity.
+      required: false
+      example: sensor.detjon_protein
+      selector:
+        entity:
+    user_id:
+      name: Tracker ID
+      description: Optional fallback to target tracker by id.
+      required: false
+      example: user1
+      selector:
+        text:
+    goal_grams:
+      name: Goal grams
+      description: Daily protein target in grams.
+      required: true
+      example: 160
+      selector:
+        number:
+          min: 0
+          max: 1000
+          step: 1
+          mode: box
+
+reset_user:
+  name: Reset Today
+  description: Reset today's consumed protein to 0.
+  fields:
+    entity_id:
+      name: Tracker Entity
+      description: Recommended. Sensor or goal-number entity.
+      required: false
+      example: sensor.detjon_protein
+      selector:
+        entity:
+    user_id:
+      name: Tracker ID
+      description: Optional fallback to target tracker by id.
+      required: false
+      example: user1
+      selector:
+        text:

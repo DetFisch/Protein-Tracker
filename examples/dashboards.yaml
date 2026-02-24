@@ -1,0 +1,19 @@
+# Beispiel-Lovelace-Views
+# Voraussetzung: /local/protein-tracker-card.js als Resource hinzufügen.
+
+views:
+  - title: Protein Dashboard 1
+    path: protein-dashboard-1
+    badges: []
+    cards:
+      - type: custom:protein-tracker-card
+        entity: sensor.dashboard1
+        name: Protein Tracker - Dashboard 1
+
+  - title: Protein Dashboard 2
+    path: protein-dashboard-2
+    badges: []
+    cards:
+      - type: custom:protein-tracker-card
+        entity: sensor.dashboard2
+        name: Protein Tracker - Dashboard 2

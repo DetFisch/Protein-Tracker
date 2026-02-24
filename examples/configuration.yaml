@@ -1,0 +1,9 @@
+# configuration.yaml
+protein_tracker:
+  users:
+    - id: dashboard1
+      name: Detjon
+      goal: 160
+    - id: dashboard2
+      name: Alex
+      goal: 140

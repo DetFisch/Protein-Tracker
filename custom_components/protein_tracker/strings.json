@@ -1,0 +1,22 @@
+{
+  "title": "Protein Tracker",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Protein Tracker",
+        "description": "Create an independent tracker instance.",
+        "data": {
+          "id": "Tracker ID",
+          "name": "Display name",
+          "goal": "Daily goal (g)"
+        }
+      }
+    },
+    "error": {
+      "already_configured": "This tracker ID already exists."
+    },
+    "abort": {
+      "already_configured": "This tracker ID is already configured."
+    }
+  }
+}

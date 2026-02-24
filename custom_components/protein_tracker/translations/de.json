@@ -1,0 +1,21 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Protein Tracker",
+        "description": "Erstelle eine unabhaengige Tracker-Instanz.",
+        "data": {
+          "id": "Tracker-ID",
+          "name": "Anzeigename",
+          "goal": "Tagesziel (g)"
+        }
+      }
+    },
+    "error": {
+      "already_configured": "Diese Tracker-ID existiert bereits."
+    },
+    "abort": {
+      "already_configured": "Diese Tracker-ID ist bereits konfiguriert."
+    }
+  }
+}
