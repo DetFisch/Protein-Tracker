@@ -1,4 +1,4 @@
-const PT_CARD_VERSION = "2.15.2"
+const PT_CARD_VERSION = "2.15.3"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
 
@@ -327,6 +327,19 @@ class ProteinTrackerCard extends HTMLElement {
           white-space: nowrap;
         }
 
+        @media (max-width: 600px) {
+          .metric-label, .value {
+            font-size: 1.1rem;
+          }
+          .field-row.double, .field-row.multi, .field-row.single {
+            grid-template-columns: 1fr !important;
+          }
+          .action-btn {
+            justify-self: stretch;
+            margin-top: 4px;
+          }
+        }
+
         .progress-wrap {
           width: 100%;
         }
@@ -515,7 +528,7 @@ class ProteinTrackerCard extends HTMLElement {
             <ha-textfield id="input-c100" type="number" step="0.1" min="0" label="Kcal / 100g"></ha-textfield>
           </div>
           <div class="field-row single">
-            <ha-textfield id="input-food" type="number" step="0.1" min="0" label="Gegessen (Gramm)"></ha-textfield>
+            <ha-textfield id="input-food" type="number" step="0.1" min="0" label="Essen (g)"></ha-textfield>
             <ha-button id="btn-food" class="action-btn" appearance="accent" variant="brand">Eintragen</ha-button>
           </div>
         </section>
