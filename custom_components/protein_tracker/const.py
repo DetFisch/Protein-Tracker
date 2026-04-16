@@ -20,6 +20,7 @@ DEFAULT_CALORIE_GOAL = 0.0
 
 SERVICE_ADD_PROTEIN = "add_protein"
 SERVICE_ADD_FOOD = "add_food"
+SERVICE_ADD_ENTRY = "add_entry"
 SERVICE_SET_GOAL = "set_goal"
 SERVICE_RESET_USER = "reset_user"
 SERVICE_ADD_CALORIES = "add_calories"

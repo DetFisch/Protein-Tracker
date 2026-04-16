@@ -1,25 +1,20 @@
-const PT_CARD_VERSION = "2.14.8"
+const PT_CARD_VERSION = "2.15.0"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
 
-// Inject global styles to override HA dialog defaults
+// Inject global styles for the top-level dialog element
 const style = document.createElement('style');
 style.textContent = `
   ha-dialog[data-protein-tracker] {
     --mdc-dialog-min-width: 800px !important;
-    --mdc-dialog-max-width: none !important;
-    width: 800px !important;
+    --mdc-dialog-max-width: 800px !important;
+    --ha-dialog-static-width: 800px !important;
+    display: block !important;
   }
-  
-  /* Deep targetting to bypass Shadow DOM limits where possible */
-  ha-dialog[data-protein-tracker],
-  ha-dialog[data-protein-tracker] * {
-    --mdc-dialog-max-width: none !important;
-  }
-
   @media (max-width: 820px) {
     ha-dialog[data-protein-tracker] {
       --mdc-dialog-min-width: 95vw !important;
+      --mdc-dialog-max-width: 95vw !important;
       width: 95vw !important;
     }
   }
@@ -42,7 +37,8 @@ const PT_METRICS = {
     goalService: "set_goal",
     goalField: "goal_grams",
     resetService: "reset_user",
-    undoService: "undo_last"
+    undoService: "undo_last",
+    combinedService: "add_entry"
   },
   calories: {
     label: "Kalorien",
@@ -58,7 +54,8 @@ const PT_METRICS = {
     goalService: "set_calorie_goal",
     goalField: "goal_calories",
     resetService: "reset_calories",
-    undoService: "undo_last"
+    undoService: "undo_last",
+    combinedService: "add_entry"
   }
 }
 
@@ -574,7 +571,8 @@ class ProteinTrackerCard extends HTMLElement {
       </div>
     `
 
-    this.appendChild(this._dialog)
+    // Append to document.body instead of this, to escape Lovelace column constraints
+    document.body.appendChild(this._dialog)
   }
 
   _attachCardEvents() {
@@ -619,28 +617,35 @@ class ProteinTrackerCard extends HTMLElement {
     this._syncDialogFields()
     this._setDialogStatus("", false)
 
-    // Force style properties directly on the element
     this._dialog.style.setProperty("--mdc-dialog-min-width", "800px", "important");
-    this._dialog.style.setProperty("--mdc-dialog-max-width", "none", "important");
+    this._dialog.style.setProperty("--mdc-dialog-max-width", "800px", "important");
 
-    // Try to reach into shadow root for content-wrapper
-    this._dialog.updateComplete?.then(() => {
-      const surface = this._dialog.shadowRoot?.querySelector(".mdc-dialog__surface");
-      if (surface) {
-        surface.style.setProperty("max-width", "none", "important");
-        surface.style.setProperty("width", "800px", "important");
-        
-        const wrapper = surface.querySelector(".content-wrapper");
-        if (wrapper) {
-          wrapper.style.setProperty("max-width", "none", "important");
-          wrapper.style.setProperty("width", "100%", "important");
-        }
+    // Deep force inside the dialog's own shadow DOM
+    const injectStyle = () => {
+      const shadow = this._dialog.shadowRoot;
+      if (shadow && !shadow.querySelector("#pt-dialog-style")) {
+        const s = document.createElement("style");
+        s.id = "pt-dialog-style";
+        s.textContent = `
+          .mdc-dialog__surface { width: 800px !important; max-width: none !important; min-width: 800px !important; }
+          .content-wrapper { width: 800px !important; max-width: none !important; min-width: 800px !important; }
+          .mdc-dialog__content { width: 100% !important; padding: 20px !important; }
+          @media (max-width: 820px) {
+            .mdc-dialog__surface, .content-wrapper { width: 95vw !important; min-width: 95vw !important; }
+          }
+        `;
+        shadow.appendChild(s);
       }
-    });
+    };
+
+    // Attempt injection several times to ensure the shadow root is ready
+    injectStyle();
+    this._dialog.updateComplete?.then(injectStyle);
 
     // Force closed state first to ensure clean open
     this._dialog.open = false
     setTimeout(() => {
+      injectStyle();
       this._dialog.open = true
     }, 10)
   }
@@ -855,14 +860,10 @@ class ProteinTrackerCard extends HTMLElement {
     }
 
     try {
-      await this._runActions([
-        protein.provided
-          ? { metricKey: "protein", service: PT_METRICS.protein.directService, payload: { [PT_METRICS.protein.directField]: protein.value } }
-          : null,
-        calories.provided
-          ? { metricKey: "calories", service: PT_METRICS.calories.directService, payload: { [PT_METRICS.calories.directField]: calories.value } }
-          : null
-      ].filter(Boolean))
+      await this._callServiceRaw("protein", PT_METRICS.protein.combinedService, {
+        [PT_METRICS.protein.directField]: protein.value || 0,
+        [PT_METRICS.calories.directField]: calories.value || 0
+      })
 
       this._dialog.querySelector("#input-direct-protein").value = ""
       this._dialog.querySelector("#input-direct-calories").value = ""
@@ -893,28 +894,13 @@ class ProteinTrackerCard extends HTMLElement {
     }
 
     try {
-      await this._runActions([
-        proteinPer100.provided
-          ? {
-              metricKey: "protein",
-              service: PT_METRICS.protein.foodService,
-              payload: {
-                food_grams: food.value,
-                [PT_METRICS.protein.foodField]: proteinPer100.value
-              }
-            }
-          : null,
-        caloriesPer100.provided
-          ? {
-              metricKey: "calories",
-              service: PT_METRICS.calories.foodService,
-              payload: {
-                food_grams: food.value,
-                [PT_METRICS.calories.foodField]: caloriesPer100.value
-              }
-            }
-          : null
-      ].filter(Boolean))
+      const pGrams = proteinPer100.provided ? (food.value * proteinPer100.value) / 100.0 : 0
+      const cGrams = caloriesPer100.provided ? (food.value * caloriesPer100.value) / 100.0 : 0
+
+      await this._callServiceRaw("protein", PT_METRICS.protein.combinedService, {
+        [PT_METRICS.protein.directField]: pGrams,
+        [PT_METRICS.calories.directField]: cGrams
+      })
 
       this._dialog.querySelector("#input-food").value = ""
       this._dialog.querySelector("#input-p100").value = ""

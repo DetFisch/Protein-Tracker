@@ -113,23 +113,32 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         await self._save()
         self.async_set_updated_data(self._public_data())
 
-    async def async_add_protein(self, user_id: str, grams: float) -> None:
-        """Add protein in grams for one user."""
-        if grams <= 0:
-            raise HomeAssistantError("grams must be > 0")
+    async def async_add_entry(
+        self, user_id: str, protein: float = 0.0, calories: float = 0.0
+    ) -> None:
+        """Add both protein and calories in a single atomic history entry."""
+        if float(protein) <= 0 and float(calories) <= 0:
+            raise HomeAssistantError("At least one value must be > 0")
 
         self._rollover_if_needed(self._today_key())
         user = self._get_user(user_id)
-        user[ATTR_TODAY_TOTAL] = float(user[ATTR_TODAY_TOTAL]) + float(grams)
-        
-        # Record history
+        user[ATTR_TODAY_TOTAL] = float(user[ATTR_TODAY_TOTAL]) + float(protein)
+        user[ATTR_CALORIES_TODAY_TOTAL] = (
+            float(user[ATTR_CALORIES_TODAY_TOTAL]) + float(calories)
+        )
+
+        # Record as ONE history entry
         history = user.setdefault("history", [])
-        history.append({"protein": float(grams), "calories": 0.0})
+        history.append({"protein": float(protein), "calories": float(calories)})
         # Keep only last 20 entries
         user["history"] = history[-20:]
 
         await self._save()
         self.async_set_updated_data(self._public_data())
+
+    async def async_add_protein(self, user_id: str, grams: float) -> None:
+        """Add protein in grams for one user."""
+        await self.async_add_entry(user_id, protein=grams)
 
     async def async_add_food(
         self,
@@ -144,11 +153,6 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
             raise HomeAssistantError("protein_per_100g must be > 0")
 
         grams = (food_grams * protein_per_100g) / 100.0
-        
-        # We need to record this as a combined entry if we want to undo it correctly,
-        # but the card might call add_food and then add_calorie_food separately if they are separate metrics.
-        # Actually, in ProteinTrackerCard._handleAddFood, it calls them separately.
-        # So we should just handle them as separate history entries.
         await self.async_add_protein(user_id, grams)
         return grams
 
@@ -166,21 +170,7 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
 
     async def async_add_calories(self, user_id: str, calories: float) -> None:
         """Add calories for one user."""
-        if calories <= 0:
-            raise HomeAssistantError("calories must be > 0")
-
-        self._rollover_if_needed(self._today_key())
-        user = self._get_user(user_id)
-        user[ATTR_CALORIES_TODAY_TOTAL] = float(user[ATTR_CALORIES_TODAY_TOTAL]) + float(calories)
-
-        # Record history
-        history = user.setdefault("history", [])
-        history.append({"protein": 0.0, "calories": float(calories)})
-        # Keep only last 20 entries
-        user["history"] = history[-20:]
-
-        await self._save()
-        self.async_set_updated_data(self._public_data())
+        await self.async_add_entry(user_id, calories=calories)
 
     async def async_add_calorie_food(
         self,

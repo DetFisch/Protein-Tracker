@@ -30,8 +30,9 @@ Das Repository ist jetzt als HACS-Integration aufgebaut:
 
 1. Repository per HACS als `Integration` installieren oder `custom_components/protein_tracker` manuell nach `<HA_CONFIG>/custom_components/protein_tracker` kopieren.
 2. Lovelace Resource hinzufügen:
-   - URL: `/protein_tracker/protein-tracker-card.js?v=2.14.8`
+   - URL: `/protein_tracker/protein-tracker-card.js?v=2.15.0`
    - Typ: `module`
+
 3. Home Assistant neu starten.
 4. Browser Hard-Reload (`Ctrl+F5`).
 
@@ -75,6 +76,7 @@ Jeder Service akzeptiert:
 Services:
 - `protein_tracker.add_protein` (`grams`)
 - `protein_tracker.add_food` (`food_grams`, `protein_per_100g`)
+- `protein_tracker.add_entry` (`grams`, `calories`)
 - `protein_tracker.set_goal` (`goal_grams`)
 - `protein_tracker.reset_user`
 - `protein_tracker.undo_last`

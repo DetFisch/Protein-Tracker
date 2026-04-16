@@ -42,6 +42,7 @@ from .const import (
     FIELD_USER_ID,
     SERVICE_ADD_CALORIE_FOOD,
     SERVICE_ADD_CALORIES,
+    SERVICE_ADD_ENTRY,
     SERVICE_ADD_FOOD,
     SERVICE_ADD_PROTEIN,
     SERVICE_RESET_CALORIES,
@@ -90,6 +91,15 @@ SERVICE_SCHEMA_ADD_PROTEIN = vol.Schema(
         vol.Optional(FIELD_USER_ID): cv.slug,
         vol.Optional(FIELD_ENTITY_ID): cv.entity_id,
         vol.Required(FIELD_GRAMS): vol.Coerce(float),
+    }
+)
+
+SERVICE_SCHEMA_ADD_ENTRY = vol.Schema(
+    {
+        vol.Optional(FIELD_USER_ID): cv.slug,
+        vol.Optional(FIELD_ENTITY_ID): cv.entity_id,
+        vol.Optional(FIELD_GRAMS, default=0.0): vol.Coerce(float),
+        vol.Optional(FIELD_CALORIES, default=0.0): vol.Coerce(float),
     }
 )
 
@@ -356,6 +366,16 @@ async def _register_services(hass: HomeAssistant) -> None:
             float(call.data[FIELD_GRAMS]),
         )
 
+    async def handle_add_entry(call: ServiceCall) -> None:
+        _ensure_target(call.data)
+        user_id = _resolve_user_id(hass, call.data)
+        manager = _get_manager_for_user_id(hass, user_id)
+        await manager.async_add_entry(
+            user_id,
+            protein=float(call.data.get(FIELD_GRAMS, 0.0)),
+            calories=float(call.data.get(FIELD_CALORIES, 0.0)),
+        )
+
     async def handle_add_food(call: ServiceCall) -> None:
         _ensure_target(call.data)
         user_id = _resolve_user_id(hass, call.data)
@@ -426,6 +446,12 @@ async def _register_services(hass: HomeAssistant) -> None:
         SERVICE_ADD_PROTEIN,
         handle_add_protein,
         schema=SERVICE_SCHEMA_ADD_PROTEIN,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_ADD_ENTRY,
+        handle_add_entry,
+        schema=SERVICE_SCHEMA_ADD_ENTRY,
     )
     hass.services.async_register(
         DOMAIN,
