@@ -4,9 +4,9 @@ add_protein:
   fields:
     entity_id:
       name: Tracker Sensor Entity
-      description: Recommended. Example sensor.detjon_protein.
+      description: Recommended. Example sensor.jon_protein.
       required: false
-      example: sensor.detjon_protein
+      example: sensor.jon_protein
       selector:
         entity:
           domain: sensor
@@ -79,7 +79,7 @@ set_goal:
       name: Tracker Entity
       description: Recommended. Sensor or goal-number entity.
       required: false
-      example: sensor.detjon_protein
+      example: sensor.jon_protein
       selector:
         entity:
     user_id:
@@ -109,7 +109,7 @@ reset_user:
       name: Tracker Entity
       description: Recommended. Protein sensor or protein goal-number entity.
       required: false
-      example: sensor.detjon_protein
+      example: sensor.jon_protein
       selector:
         entity:
     user_id:
@@ -126,9 +126,9 @@ add_calories:
   fields:
     entity_id:
       name: Tracker Entity
-      description: Recommended. Example sensor.detjon_calories.
+      description: Recommended. Example sensor.jon_calories.
       required: false
-      example: sensor.detjon_calories
+      example: sensor.jon_calories
       selector:
         entity:
           domain: sensor
@@ -201,7 +201,7 @@ set_calorie_goal:
       name: Tracker Entity
       description: Recommended. Calorie sensor or calorie goal-number entity.
       required: false
-      example: sensor.detjon_calories
+      example: sensor.jon_calories
       selector:
         entity:
     user_id:
@@ -231,7 +231,7 @@ reset_calories:
       name: Tracker Entity
       description: Recommended. Calorie sensor or calorie goal-number entity.
       required: false
-      example: sensor.detjon_calories
+      example: sensor.jon_calories
       selector:
         entity:
     user_id:

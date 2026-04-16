@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import logging
 import re
+from pathlib import Path
 from typing import Any
 
 import voluptuous as vol
 
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -53,6 +55,10 @@ from .manager import ProteinTrackerManager
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.NUMBER]
+DATA_CARD_REGISTERED = "card_registered"
+CARD_FILENAME = "protein-tracker-card.js"
+CARD_URL_PATH = f"/{DOMAIN}/{CARD_FILENAME}"
+CARD_FILE_PATH = Path(__file__).parent / CARD_FILENAME
 
 USER_SCHEMA = vol.Schema(
     {
@@ -155,6 +161,7 @@ def _ensure_domain_data(hass: HomeAssistant) -> dict[str, Any]:
         hass.data[DOMAIN] = {
             DATA_ENTRIES: {},
             DATA_SERVICES_REGISTERED: False,
+            DATA_CARD_REGISTERED: False,
         }
     return hass.data[DOMAIN]
 
@@ -209,6 +216,7 @@ def _get_manager_for_user_id(hass: HomeAssistant, user_id: str) -> ProteinTracke
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     """Set up Protein Tracker from YAML and trigger config-entry imports."""
     _ensure_domain_data(hass)
+    await _ensure_card_registered(hass)
 
     conf = config.get(DOMAIN)
     if conf is None:
@@ -244,6 +252,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Protein Tracker from config entry."""
     domain_data = _ensure_domain_data(hass)
+    await _ensure_card_registered(hass)
 
     tracker_id = str(entry.data[CONF_ID])
     tracker_name = str(entry.data.get(CONF_NAME, tracker_id))
@@ -286,6 +295,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
+
+
+async def _ensure_card_registered(hass: HomeAssistant) -> None:
+    """Expose the bundled Lovelace card from inside the integration directory."""
+    domain_data = _ensure_domain_data(hass)
+    if domain_data[DATA_CARD_REGISTERED]:
+        return
+
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig(CARD_URL_PATH, str(CARD_FILE_PATH), cache_headers=True)]
+    )
+    domain_data[DATA_CARD_REGISTERED] = True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

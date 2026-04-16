@@ -2,7 +2,7 @@
 protein_tracker:
   users:
     - id: dashboard1
-      name: Detjon
+      name: Jon
       goal: 160
       calorie_goal: 2200
     - id: dashboard2

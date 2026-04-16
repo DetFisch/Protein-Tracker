@@ -1,4 +1,4 @@
-# Protein Tracker (Home Assistant Custom Integration + Custom Card)
+# Protein Tracker (Home Assistant Custom Integration + Bundled Card)
 
 Diese Lösung erstellt unabhängige Tracker-Instanzen (z. B. je Dashboard/Person) mit:
 
@@ -12,21 +12,28 @@ Diese Lösung erstellt unabhängige Tracker-Instanzen (z. B. je Dashboard/Person
 
 Hinweis: Die Card zeigt den aktuellen Fortschritt fuer Protein und Kalorien. Den normalen Verlauf nutzt du ueber die Sensoren in Home Assistant (History/Verlauf-Ansicht).
 
+## HACS
+
+Das Repository ist jetzt als HACS-Integration aufgebaut:
+
+- `hacs.json` liegt im Repo-Root
+- alle Laufzeitdateien liegen innerhalb von `custom_components/protein_tracker/`
+- die Lovelace-Card wird direkt aus der Integration unter `/protein_tracker/protein-tracker-card.js` ausgeliefert
+
 ## Struktur
 
-- `custom_components/protein_tracker/` - Custom Integration (Config Flow + Entities + Services + Persistenz)
-- `www/protein-tracker-card.js` - eine kombinierte Protein- und Kalorien-Card
-- `custom_components/protein_tracker/icon.png` / `logo.png` - Integrations-Branding-Assets (Best-Effort)
+- `custom_components/protein_tracker/` - Integration, Services, Entities, Persistenz und gebuendelte Card-Datei
+- `custom_components/protein_tracker/protein-tracker-card.js` - kombinierte Protein- und Kalorien-Card
+- `custom_components/protein_tracker/brand/` - Integrations-Branding-Assets
 
 ## Installation
 
-1. `custom_components/protein_tracker` nach `<HA_CONFIG>/custom_components/protein_tracker` kopieren.
-2. `www/protein-tracker-card.js` nach `<HA_CONFIG>/www/protein-tracker-card.js` kopieren.
-3. Lovelace Resource hinzufügen:
-   - URL: `/local/protein-tracker-card.js?v=2.13.0`
+1. Repository per HACS als `Integration` installieren oder `custom_components/protein_tracker` manuell nach `<HA_CONFIG>/custom_components/protein_tracker` kopieren.
+2. Lovelace Resource hinzufügen:
+   - URL: `/protein_tracker/protein-tracker-card.js?v=2.13.0`
    - Typ: `module`
-4. Home Assistant neu starten.
-5. Browser Hard-Reload (`Ctrl+F5`).
+3. Home Assistant neu starten.
+4. Browser Hard-Reload (`Ctrl+F5`).
 
 ## Card-Konfiguration
 
@@ -83,7 +90,7 @@ Falls du lieber per `configuration.yaml` definierst, werden Einträge beim Start
 protein_tracker:
   users:
     - id: dashboard1
-      name: Detjon
+      name: Jon
       goal: 160
       calorie_goal: 2200
     - id: dashboard2
@@ -93,4 +100,4 @@ protein_tracker:
 ```
 
 `name` ist dabei nur der Basisname. Die Integration ergänzt die Anzeigenamen automatisch
-(z. B. `Detjon Protein Tracker`, `Detjon Protein Ziel`, `Detjon Kalorien Tracker`, `Detjon Kalorien Ziel`).
+(z. B. `Jon Protein Tracker`, `Jon Protein Ziel`, `Jon Kalorien Tracker`, `Jon Kalorien Ziel`).

@@ -1,10 +1,13 @@
 {
   "domain": "protein_tracker",
   "name": "Protein Tracker",
-  "version": "1.4.2",
+  "codeowners": ["@DetFisch"],
+  "dependencies": ["http"],
+  "documentation": "https://github.com/DetFisch/Protein-Tracker",
   "config_flow": true,
   "integration_type": "service",
-  "documentation": "https://developers.home-assistant.io/docs/creating_component_index/",
+  "issue_tracker": "https://github.com/DetFisch/Protein-Tracker/issues",
   "requirements": [],
+  "version": "1.4.3",
   "iot_class": "local_push"
 }
