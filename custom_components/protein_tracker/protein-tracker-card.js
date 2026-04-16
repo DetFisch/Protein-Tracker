@@ -1,4 +1,4 @@
-const PT_CARD_VERSION = "2.15.0"
+const PT_CARD_VERSION = "2.15.1"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
 
@@ -391,8 +391,10 @@ class ProteinTrackerCard extends HTMLElement {
           display: grid;
           gap: 14px;
           padding-top: 4px;
-          width: 100%;
+          width: auto;
+          min-width: 100%;
           box-sizing: border-box;
+          overflow-x: hidden;
         }
 
         .sensor-row > * {
@@ -627,11 +629,13 @@ class ProteinTrackerCard extends HTMLElement {
         const s = document.createElement("style");
         s.id = "pt-dialog-style";
         s.textContent = `
-          .mdc-dialog__surface { width: 800px !important; max-width: none !important; min-width: 800px !important; }
+          .mdc-dialog__surface { width: 800px !important; max-width: none !important; min-width: 800px !important; overflow-x: hidden !important; }
           .content-wrapper { width: 800px !important; max-width: none !important; min-width: 800px !important; }
-          .mdc-dialog__content { width: 100% !important; padding: 20px !important; }
+          .body { width: 800px !important; max-width: none !important; min-width: 800px !important; overflow-x: hidden !important; }
+          [part="body"] { width: 800px !important; max-width: none !important; min-width: 800px !important; }
+          .mdc-dialog__content { width: 100% !important; padding: 20px !important; overflow-x: hidden !important; }
           @media (max-width: 820px) {
-            .mdc-dialog__surface, .content-wrapper { width: 95vw !important; min-width: 95vw !important; }
+            .mdc-dialog__surface, .content-wrapper, .body, [part="body"] { width: 95vw !important; min-width: 95vw !important; }
           }
         `;
         shadow.appendChild(s);
