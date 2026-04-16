@@ -1,4 +1,4 @@
-const PT_CARD_VERSION = "2.14.4"
+const PT_CARD_VERSION = "2.14.5"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
 
@@ -345,14 +345,14 @@ class ProteinTrackerCard extends HTMLElement {
         }
 
         ha-dialog {
-          --mdc-dialog-min-width: 750px;
-          --mdc-dialog-max-width: 800px;
+          --mdc-dialog-min-width: 800px !important;
+          --mdc-dialog-max-width: none !important;
           --mdc-dialog-shape-radius: var(--ha-card-border-radius, 12px);
         }
 
         @media (max-width: 820px) {
           ha-dialog {
-            --mdc-dialog-min-width: 95vw;
+            --mdc-dialog-min-width: 95vw !important;
           }
         }
 
