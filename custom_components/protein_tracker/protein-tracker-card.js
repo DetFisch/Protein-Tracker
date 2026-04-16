@@ -1,5 +1,6 @@
-const PT_CARD_VERSION = "2.14.0"
+const PT_CARD_VERSION = "2.14.1"
 const PT_DEFAULT_TITLE = "Protein Tracker"
+
 const PT_PROGRESS_HEIGHT = 32
 
 const PT_METRICS = {
@@ -315,14 +316,14 @@ class ProteinTrackerCard extends HTMLElement {
         }
 
         .metric-label {
-          font-size: 1.1rem;
-          font-weight: 600;
+          font-size: 1.3rem;
+          font-weight: var(--ha-font-weight-normal, 400);
           color: var(--primary-text-color);
         }
 
         .value {
-          font-size: 1.1rem;
-          font-weight: 500;
+          font-size: 1.3rem;
+          font-weight: var(--ha-font-weight-normal, 400);
           color: var(--primary-text-color);
           white-space: nowrap;
         }
@@ -341,6 +342,18 @@ class ProteinTrackerCard extends HTMLElement {
           --ha-progress-bar-height: ${PT_PROGRESS_HEIGHT}px;
           border-radius: var(--ha-border-radius-pill, 999px);
           overflow: hidden;
+        }
+
+        ha-dialog {
+          --mdc-dialog-min-width: 580px;
+          --mdc-dialog-max-width: 600px;
+          --mdc-dialog-shape-radius: var(--ha-card-border-radius, 12px);
+        }
+
+        @media (max-width: 600px) {
+          ha-dialog {
+            --mdc-dialog-min-width: 95vw;
+          }
         }
 
         .progress-fallback {
@@ -535,12 +548,18 @@ class ProteinTrackerCard extends HTMLElement {
           </div>
         </section>
 
+        <section class="dialog-section">
+          <h4>Verwaltung</h4>
+          <div class="dialog-footer">
+            <ha-button id="btn-undo" appearance="outlined" variant="neutral">Letzten Eintrag löschen</ha-button>
+            <ha-button id="btn-reset" appearance="outlined" variant="danger">Heutige Einträge zurücksetzen</ha-button>
+          </div>
+        </section>
+
         <div id="dialog-status" class="status"></div>
       </div>
 
-      <div slot="secondaryAction" class="dialog-footer">
-        <ha-button id="btn-undo" appearance="outlined" variant="neutral">Letzten Eintrag löschen</ha-button>
-        <ha-button id="btn-reset" appearance="outlined" variant="danger">Heutige Einträge zurücksetzen</ha-button>
+      <div slot="secondaryAction">
         <ha-button id="btn-close" appearance="plain" variant="neutral">Schließen</ha-button>
       </div>
     `
