@@ -1,26 +1,6 @@
-const PT_CARD_VERSION = "2.15.1"
+const PT_CARD_VERSION = "2.15.2"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
-
-// Inject global styles for the top-level dialog element
-const style = document.createElement('style');
-style.textContent = `
-  ha-dialog[data-protein-tracker] {
-    --mdc-dialog-min-width: 800px !important;
-    --mdc-dialog-max-width: 800px !important;
-    --ha-dialog-static-width: 800px !important;
-    display: block !important;
-  }
-  @media (max-width: 820px) {
-    ha-dialog[data-protein-tracker] {
-      --mdc-dialog-min-width: 95vw !important;
-      --mdc-dialog-max-width: 95vw !important;
-      width: 95vw !important;
-    }
-  }
-`;
-document.head.appendChild(style);
-
 
 const PT_METRICS = {
   protein: {
@@ -389,43 +369,29 @@ class ProteinTrackerCard extends HTMLElement {
 
         .dialog-grid {
           display: grid;
-          gap: 14px;
-          padding-top: 4px;
-          width: auto;
-          min-width: 100%;
-          box-sizing: border-box;
-          overflow-x: hidden;
-        }
-
-        .sensor-row > * {
-          display: block;
-          width: 100%;
+          gap: 16px;
+          padding: 8px 4px;
         }
 
         .dialog-section {
           border: 1px solid var(--divider-color);
           border-radius: var(--ha-card-border-radius, 12px);
-          padding: 10px;
+          padding: 12px;
           display: grid;
-          gap: 10px;
+          gap: 12px;
           background: var(--card-background-color);
         }
 
         .dialog-section h4 {
           margin: 0;
-          font-size: 0.9rem;
+          font-size: 0.95rem;
           font-weight: 600;
           color: var(--primary-text-color);
         }
 
-        .sensor-fallback {
-          font-size: 0.85rem;
-          color: var(--secondary-text-color);
-        }
-
         .field-row {
           display: grid;
-          gap: 10px;
+          gap: 12px;
           align-items: end;
         }
 
@@ -433,8 +399,12 @@ class ProteinTrackerCard extends HTMLElement {
           grid-template-columns: 1fr 1fr auto;
         }
 
-        .field-row.triple {
-          grid-template-columns: 1.2fr 1.2fr 1.2fr auto;
+        .field-row.multi {
+          grid-template-columns: 1fr 1fr;
+        }
+
+        .field-row.single {
+          grid-template-columns: 1fr auto;
         }
 
         .action-btn {
@@ -443,9 +413,10 @@ class ProteinTrackerCard extends HTMLElement {
 
         .dialog-footer {
           display: flex;
-          gap: var(--ha-space-2, 8px);
+          gap: 8px;
           align-items: center;
           flex-wrap: wrap;
+          padding-top: 4px;
         }
 
         .status {
@@ -523,7 +494,6 @@ class ProteinTrackerCard extends HTMLElement {
 
   _renderDialog() {
     this._dialog = document.createElement("ha-dialog")
-    this._dialog.setAttribute("data-protein-tracker", "")
     this._dialog.open = false
     this._dialog.innerHTML = `
       <div class="dialog-grid">
@@ -540,10 +510,12 @@ class ProteinTrackerCard extends HTMLElement {
 
         <section class="dialog-section">
           <h4>Über Essen berechnen</h4>
-          <div class="field-row triple">
+          <div class="field-row multi">
             <ha-textfield id="input-p100" type="number" step="0.1" min="0" label="Protein / 100g"></ha-textfield>
             <ha-textfield id="input-c100" type="number" step="0.1" min="0" label="Kcal / 100g"></ha-textfield>
-            <ha-textfield id="input-food" type="number" step="0.1" min="0" label="Essen (g)"></ha-textfield>
+          </div>
+          <div class="field-row single">
+            <ha-textfield id="input-food" type="number" step="0.1" min="0" label="Gegessen (Gramm)"></ha-textfield>
             <ha-button id="btn-food" class="action-btn" appearance="accent" variant="brand">Eintragen</ha-button>
           </div>
         </section>
@@ -561,7 +533,7 @@ class ProteinTrackerCard extends HTMLElement {
           <h4>Verwaltung</h4>
           <div class="dialog-footer">
             <ha-button id="btn-undo" appearance="outlined" variant="neutral">Letzten Eintrag löschen</ha-button>
-            <ha-button id="btn-reset" appearance="outlined" variant="danger">Heutige Einträge zurücksetzen</ha-button>
+            <ha-button id="btn-reset" appearance="outlined" variant="danger">Einträge zurücksetzen</ha-button>
           </div>
         </section>
 
@@ -573,8 +545,7 @@ class ProteinTrackerCard extends HTMLElement {
       </div>
     `
 
-    // Append to document.body instead of this, to escape Lovelace column constraints
-    document.body.appendChild(this._dialog)
+    this.appendChild(this._dialog)
   }
 
   _attachCardEvents() {
@@ -619,37 +590,9 @@ class ProteinTrackerCard extends HTMLElement {
     this._syncDialogFields()
     this._setDialogStatus("", false)
 
-    this._dialog.style.setProperty("--mdc-dialog-min-width", "800px", "important");
-    this._dialog.style.setProperty("--mdc-dialog-max-width", "800px", "important");
-
-    // Deep force inside the dialog's own shadow DOM
-    const injectStyle = () => {
-      const shadow = this._dialog.shadowRoot;
-      if (shadow && !shadow.querySelector("#pt-dialog-style")) {
-        const s = document.createElement("style");
-        s.id = "pt-dialog-style";
-        s.textContent = `
-          .mdc-dialog__surface { width: 800px !important; max-width: none !important; min-width: 800px !important; overflow-x: hidden !important; }
-          .content-wrapper { width: 800px !important; max-width: none !important; min-width: 800px !important; }
-          .body { width: 800px !important; max-width: none !important; min-width: 800px !important; overflow-x: hidden !important; }
-          [part="body"] { width: 800px !important; max-width: none !important; min-width: 800px !important; }
-          .mdc-dialog__content { width: 100% !important; padding: 20px !important; overflow-x: hidden !important; }
-          @media (max-width: 820px) {
-            .mdc-dialog__surface, .content-wrapper, .body, [part="body"] { width: 95vw !important; min-width: 95vw !important; }
-          }
-        `;
-        shadow.appendChild(s);
-      }
-    };
-
-    // Attempt injection several times to ensure the shadow root is ready
-    injectStyle();
-    this._dialog.updateComplete?.then(injectStyle);
-
     // Force closed state first to ensure clean open
     this._dialog.open = false
     setTimeout(() => {
-      injectStyle();
       this._dialog.open = true
     }, 10)
   }
