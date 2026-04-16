@@ -4,6 +4,8 @@ protein_tracker:
     - id: dashboard1
       name: Detjon
       goal: 160
+      calorie_goal: 2200
     - id: dashboard2
       name: Alex
       goal: 140
+      calorie_goal: 2500

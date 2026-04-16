@@ -1,97 +1,286 @@
-const PT_CARD_VERSION = "2.10.0";
-const PT_DEFAULT_TITLE = "Protein Tracker";
-const PT_PROGRESS_HEIGHT = 42;
+const PT_CARD_VERSION = "2.13.0"
+const PT_DEFAULT_TITLE = "Protein Tracker"
+const PT_PROGRESS_HEIGHT = 28
+
+const PT_METRICS = {
+  protein: {
+    label: "Protein",
+    unit: "g",
+    displayDecimals: 1,
+    entitySuffix: "_protein",
+    legacySensorPattern: /^sensor\.protein_tracker_([a-z0-9_]+)_today(?:_[0-9]+)?$/i,
+    legacyGoalPattern: /^number\.protein_tracker_([a-z0-9_]+)_goal(?:_[0-9]+)?$/i,
+    directService: "add_protein",
+    directField: "grams",
+    foodService: "add_food",
+    foodField: "protein_per_100g",
+    goalService: "set_goal",
+    goalField: "goal_grams",
+    resetService: "reset_user"
+  },
+  calories: {
+    label: "Kalorien",
+    unit: "kcal",
+    displayDecimals: 0,
+    entitySuffix: "_calories",
+    legacySensorPattern: /^sensor\.protein_tracker_([a-z0-9_]+)_calories(?:_[0-9]+)?$/i,
+    legacyGoalPattern: /^number\.protein_tracker_([a-z0-9_]+)_(?:calorie_goal|calories_goal|calories)(?:_[0-9]+)?$/i,
+    directService: "add_calories",
+    directField: "calories",
+    foodService: "add_calorie_food",
+    foodField: "calories_per_100g",
+    goalService: "set_calorie_goal",
+    goalField: "goal_calories",
+    resetService: "reset_calories"
+  }
+}
 
 class ProteinTrackerCard extends HTMLElement {
   setConfig(config) {
-    const entity = config.entity || (config.user_id ? `sensor.${config.user_id}` : null);
+    const baseEntity = config.entity || config.protein_entity || this._defaultProteinEntity(config.user_id)
+    const normalized = this._normalizeEntities(baseEntity, config.calorie_entity)
 
     this._config = {
       name: config.name || PT_DEFAULT_TITLE,
-      entity,
-      goal_entity: config.goal_entity || this._deriveGoalEntity(entity)
-    };
+      entity: normalized.protein,
+      calorie_entity: normalized.calories,
+      goal_entity: config.goal_entity || this._deriveGoalEntity(normalized.protein, "protein"),
+      calorie_goal_entity: config.calorie_goal_entity || this._deriveGoalEntity(normalized.calories, "calories"),
+      goal_entity_explicit: Boolean(config.goal_entity),
+      calorie_goal_entity_explicit: Boolean(config.calorie_goal_entity)
+    }
   }
 
   set hass(hass) {
-    this._hass = hass;
+    this._hass = hass
 
     if (!this._root) {
-      this._renderSkeleton();
-      this._attachCardEvents();
-      this._renderDialog();
-      this._attachDialogEvents();
+      this._renderSkeleton()
+      this._attachCardEvents()
+      this._renderDialog()
+      this._attachDialogEvents()
     }
 
-    this._multipleCandidates = false;
+    this._multipleCandidates = false
     if (!this._config.entity) {
-      const candidates = this._trackerEntities();
+      const candidates = this._trackerEntities()
       if (candidates.length === 1) {
-        this._config.entity = candidates[0];
-        if (!this._config.goal_entity) {
-          this._config.goal_entity = this._deriveGoalEntity(candidates[0]);
-        }
+        this._config.entity = candidates[0]
       } else if (candidates.length > 1) {
-        this._multipleCandidates = true;
+        this._multipleCandidates = true
       }
     }
 
-    this._renderState();
+    this._syncConfiguredEntities()
+    this._renderState()
   }
 
   getCardSize() {
-    return 2;
+    return 4
+  }
+
+  _defaultProteinEntity(userId) {
+    if (!userId) {
+      return null
+    }
+
+    return `sensor.${userId}_protein`
+  }
+
+  _normalizeEntities(baseEntity, calorieEntity) {
+    if (baseEntity && this._hasEntitySuffix(baseEntity, PT_METRICS.calories.entitySuffix)) {
+      return {
+        protein: this._deriveSiblingEntity(baseEntity, "protein"),
+        calories: calorieEntity || baseEntity
+      }
+    }
+
+    return {
+      protein: baseEntity,
+      calories: calorieEntity || this._deriveSiblingEntity(baseEntity, "calories")
+    }
+  }
+
+  _syncConfiguredEntities() {
+    this._config.entity = this._migrateEntityId(this._config.entity, "protein")
+    this._config.calorie_entity = this._migrateEntityId(
+      this._config.calorie_entity || this._deriveSiblingEntity(this._config.entity, "calories"),
+      "calories"
+    )
+
+    if (!this._config.goal_entity_explicit) {
+      this._config.goal_entity = this._deriveGoalEntity(this._config.entity, "protein")
+    } else {
+      this._config.goal_entity = this._migrateGoalEntityId(this._config.goal_entity, "protein")
+    }
+
+    if (!this._config.calorie_goal_entity_explicit) {
+      this._config.calorie_goal_entity = this._deriveGoalEntity(this._config.calorie_entity, "calories")
+    } else {
+      this._config.calorie_goal_entity = this._migrateGoalEntityId(this._config.calorie_goal_entity, "calories")
+    }
+  }
+
+  _migrateEntityId(entity, metricKey) {
+    if (!entity) {
+      return entity
+    }
+
+    if (this._hass?.states?.[entity]) {
+      return entity
+    }
+
+    const metric = PT_METRICS[metricKey]
+    const legacyMatch = metric.legacySensorPattern.exec(entity)
+    if (legacyMatch) {
+      const migrated = `sensor.${legacyMatch[1]}${metric.entitySuffix}`
+      if (!this._hass || this._hass.states[migrated]) {
+        return migrated
+      }
+    }
+
+    const simple = /^sensor\.([a-z0-9_]+?)(?:_(?:protein|calories))?(?:_[0-9]+)?$/i.exec(entity)
+    if (simple) {
+      const migrated = `sensor.${simple[1]}${metric.entitySuffix}`
+      if (!this._hass || this._hass.states[migrated]) {
+        return migrated
+      }
+    }
+
+    return entity
+  }
+
+  _migrateGoalEntityId(entity, metricKey) {
+    if (!entity) {
+      return entity
+    }
+
+    if (this._hass?.states?.[entity]) {
+      return entity
+    }
+
+    const metric = PT_METRICS[metricKey]
+    const legacyMatch = metric.legacyGoalPattern.exec(entity)
+    if (legacyMatch) {
+      const migrated = `number.${legacyMatch[1]}${metric.entitySuffix}`
+      if (!this._hass || this._hass.states[migrated]) {
+        return migrated
+      }
+    }
+
+    const simple = /^number\.([a-z0-9_]+?)(?:_(?:protein|calories|goal|protein_goal|calorie_goal|calories_goal))?(?:_[0-9]+)?$/i.exec(entity)
+    if (simple && !this._hasEntitySuffix(entity, PT_METRICS.protein.entitySuffix) && !this._hasEntitySuffix(entity, PT_METRICS.calories.entitySuffix)) {
+      const migrated = `number.${simple[1]}${metric.entitySuffix}`
+      if (!this._hass || this._hass.states[migrated]) {
+        return migrated
+      }
+    }
+
+    return entity
   }
 
   _trackerEntities() {
     if (!this._hass) {
-      return [];
+      return []
     }
 
-    const entities = [];
+    const entities = []
     for (const [entityId, state] of Object.entries(this._hass.states || {})) {
       if (!entityId.startsWith("sensor.")) {
-        continue;
+        continue
       }
-      const userId = state?.attributes?.user_id;
-      if (typeof userId === "string" && userId.length > 0) {
-        entities.push(entityId);
+
+      const userId = state?.attributes?.user_id
+      if (typeof userId !== "string" || userId.length === 0) {
+        continue
       }
+
+      const trackerType = state?.attributes?.tracker_type
+      if (trackerType === "calories" || this._hasEntitySuffix(entityId, PT_METRICS.calories.entitySuffix)) {
+        continue
+      }
+
+      entities.push(this._migrateEntityId(entityId, "protein"))
     }
 
-    return entities;
+    return [...new Set(entities)]
   }
 
-  _deriveGoalEntity(entity) {
-    const legacy = /^sensor\.protein_tracker_([a-z0-9_]+)_today(?:_[0-9]+)?$/i.exec(entity || "");
-    if (legacy) {
-      return `number.protein_tracker_${legacy[1]}_goal`;
+  _deriveSiblingEntity(entity, metricKey) {
+    if (!entity) {
+      return null
     }
 
-    const simple = /^sensor\.([a-z0-9_]+?)(?:_[0-9]+)?$/i.exec(entity || "");
-    if (simple) {
-      return `number.${simple[1]}`;
+    const metric = PT_METRICS[metricKey]
+    const legacyMatch = metric.legacySensorPattern.exec(entity)
+    if (legacyMatch) {
+      return `sensor.${legacyMatch[1]}${metric.entitySuffix}`
     }
 
-    return null;
+    const proteinLegacy = PT_METRICS.protein.legacySensorPattern.exec(entity)
+    if (proteinLegacy) {
+      return `sensor.${proteinLegacy[1]}${metric.entitySuffix}`
+    }
+
+    const caloriesLegacy = PT_METRICS.calories.legacySensorPattern.exec(entity)
+    if (caloriesLegacy) {
+      return `sensor.${caloriesLegacy[1]}${metric.entitySuffix}`
+    }
+
+    const simple = /^sensor\.([a-z0-9_]+?)(?:_(?:protein|calories))?(?:_[0-9]+)?$/i.exec(entity)
+    if (!simple) {
+      return null
+    }
+
+    return `sensor.${simple[1]}${metric.entitySuffix}`
+  }
+
+  _deriveGoalEntity(entity, metricKey) {
+    if (!entity) {
+      return null
+    }
+
+    const metric = PT_METRICS[metricKey]
+    const legacyMatch = metric.legacySensorPattern.exec(entity)
+    if (legacyMatch) {
+      return `number.${legacyMatch[1]}${metric.entitySuffix}`
+    }
+
+    const simple = /^sensor\.([a-z0-9_]+?)(?:_(?:protein|calories))?(?:_[0-9]+)?$/i.exec(entity)
+    if (!simple) {
+      return null
+    }
+
+    return `number.${simple[1]}${metric.entitySuffix}`
+  }
+
+  _hasEntitySuffix(entity, suffix) {
+    return new RegExp(`${suffix}(?:_[0-9]+)?$`).test(entity || "")
   }
 
   _currentUserId() {
-    if (!this._hass || !this._config.entity) {
-      return null;
+    const entities = [this._config.entity, this._config.calorie_entity]
+    for (const entity of entities) {
+      if (!entity) {
+        continue
+      }
+      const userId = this._hass?.states?.[entity]?.attributes?.user_id
+      if (typeof userId === "string" && userId.length > 0) {
+        return userId
+      }
     }
+    return null
+  }
 
-    const state = this._hass.states[this._config.entity];
-    const userId = state?.attributes?.user_id;
-    if (typeof userId === "string" && userId.length > 0) {
-      return userId;
-    }
-    return null;
+  _formatValue(value, metricKey) {
+    const metric = PT_METRICS[metricKey]
+    const safeValue = Number.isFinite(value) ? value : 0
+    return safeValue.toFixed(metric.displayDecimals)
   }
 
   _renderSkeleton() {
-    this._root = document.createElement("ha-card");
-    this._root.setAttribute("tabindex", "0");
+    this._root = document.createElement("ha-card")
+    this._root.setAttribute("tabindex", "0")
     this._root.innerHTML = `
       <style>
         :host {
@@ -102,21 +291,34 @@ class ProteinTrackerCard extends HTMLElement {
           cursor: pointer;
         }
 
-        .summary-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 12px;
-          margin-bottom: 10px;
-        }
-
         .title {
           font-size: var(--ha-card-header-font-size, var(--ha-font-size-2xl));
           line-height: var(--ha-line-height-expanded);
           font-weight: var(--ha-font-weight-normal);
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+          margin-bottom: 12px;
+        }
+
+        .summary-grid {
+          display: grid;
+          gap: 14px;
+        }
+
+        .metric-block {
+          display: grid;
+          gap: 8px;
+        }
+
+        .summary-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+          gap: 12px;
+        }
+
+        .metric-label {
+          font-size: 0.95rem;
+          font-weight: 600;
+          color: var(--primary-text-color);
         }
 
         .value {
@@ -161,20 +363,15 @@ class ProteinTrackerCard extends HTMLElement {
         .meta {
           display: flex;
           justify-content: space-between;
-          margin-top: 8px;
+          gap: 12px;
           font-size: 0.85rem;
           color: var(--secondary-text-color);
-          gap: 12px;
         }
 
         .dialog-grid {
           display: grid;
           gap: 12px;
           padding-top: 4px;
-        }
-
-        .sensor-row {
-          display: block;
         }
 
         .sensor-row > * {
@@ -205,13 +402,16 @@ class ProteinTrackerCard extends HTMLElement {
 
         .field-row {
           display: grid;
-          grid-template-columns: 1fr auto;
           gap: 10px;
           align-items: end;
         }
 
         .field-row.double {
           grid-template-columns: 1fr 1fr auto;
+        }
+
+        .field-row.triple {
+          grid-template-columns: 1fr 1fr 1fr auto;
         }
 
         .action-btn {
@@ -235,65 +435,98 @@ class ProteinTrackerCard extends HTMLElement {
           color: var(--error-color);
         }
 
-        @media (max-width: 680px) {
-          .field-row,
-          .field-row.double {
+        @media (max-width: 760px) {
+          .field-row.double,
+          .field-row.triple {
             grid-template-columns: 1fr;
           }
 
           .action-btn {
             justify-self: start;
           }
+
+          .meta {
+            flex-direction: column;
+            gap: 4px;
+          }
         }
       </style>
 
       <div class="card-content">
-        <div class="summary-row">
-          <span id="title" class="title"></span>
-          <span id="value" class="value"></span>
-        </div>
-        <div class="progress-wrap">
-          <ha-progress-bar id="progress" value="0"></ha-progress-bar>
-          <div id="progress-fallback" class="progress-fallback"><div id="progress-fill" class="progress-fill"></div></div>
-        </div>
-        <div class="meta">
-          <span id="meta-left"></span>
-          <span id="meta-right"></span>
+        <div id="title" class="title"></div>
+
+        <div class="summary-grid">
+          <section class="metric-block">
+            <div class="summary-row">
+              <span class="metric-label">Protein</span>
+              <span id="protein-value" class="value"></span>
+            </div>
+            <div class="progress-wrap">
+              <ha-progress-bar id="protein-progress" value="0"></ha-progress-bar>
+              <div id="protein-progress-fallback" class="progress-fallback">
+                <div id="protein-progress-fill" class="progress-fill"></div>
+              </div>
+            </div>
+            <div class="meta">
+              <span id="protein-meta-left"></span>
+              <span id="protein-meta-right"></span>
+            </div>
+          </section>
+
+          <section class="metric-block">
+            <div class="summary-row">
+              <span class="metric-label">Kalorien</span>
+              <span id="calories-value" class="value"></span>
+            </div>
+            <div class="progress-wrap">
+              <ha-progress-bar id="calories-progress" value="0"></ha-progress-bar>
+              <div id="calories-progress-fallback" class="progress-fallback">
+                <div id="calories-progress-fill" class="progress-fill"></div>
+              </div>
+            </div>
+            <div class="meta">
+              <span id="calories-meta-left"></span>
+              <span id="calories-meta-right"></span>
+            </div>
+          </section>
         </div>
       </div>
-    `;
+    `
 
-    this.appendChild(this._root);
+    this.appendChild(this._root)
   }
 
   _renderDialog() {
-    this._dialog = document.createElement("ha-dialog");
-    this._dialog.open = false;
+    this._dialog = document.createElement("ha-dialog")
+    this._dialog.open = false
     this._dialog.innerHTML = `
       <div class="dialog-grid">
         <div id="sensor-standard" class="sensor-row"></div>
 
         <section class="dialog-section">
-          <h4>Direkt Protein eintragen</h4>
-          <div class="field-row">
-            <ha-textfield id="input-direct" type="number" step="0.1" min="0" label="Protein (g)"></ha-textfield>
+          <h4>Direkt eintragen</h4>
+          <div class="field-row double">
+            <ha-textfield id="input-direct-protein" type="number" step="0.1" min="0" label="Protein (g)"></ha-textfield>
+            <ha-textfield id="input-direct-calories" type="number" step="0.1" min="0" label="Kalorien (kcal)"></ha-textfield>
             <ha-button id="btn-direct" class="action-btn" appearance="accent" variant="brand">Eintragen</ha-button>
           </div>
         </section>
 
         <section class="dialog-section">
-          <h4>Protein über Essen berechnen</h4>
-          <div class="field-row double">
+          <h4>Über Essen berechnen</h4>
+          <div class="field-row triple">
             <ha-textfield id="input-food" type="number" step="0.1" min="0" label="Essen (g)"></ha-textfield>
             <ha-textfield id="input-p100" type="number" step="0.1" min="0" label="Protein / 100g"></ha-textfield>
+            <ha-textfield id="input-c100" type="number" step="0.1" min="0" label="Kcal / 100g"></ha-textfield>
             <ha-button id="btn-food" class="action-btn" appearance="accent" variant="brand">Eintragen</ha-button>
           </div>
         </section>
 
         <section class="dialog-section">
-          <h4>Tagesziel</h4>
-          <div class="field-row">
-            <ha-textfield id="input-goal" type="number" step="1" min="0" label="Ziel (g)"></ha-textfield>
+          <h4>Tagesziele</h4>
+          <div class="field-row double">
+            <ha-textfield id="input-goal-protein" type="number" step="1" min="0" label="Protein-Ziel (g)"></ha-textfield>
+            <ha-textfield id="input-goal-calories" type="number" step="1" min="0" label="Kalorien-Ziel (kcal)"></ha-textfield>
             <ha-button id="btn-goal" class="action-btn" appearance="accent" variant="brand">Speichern</ha-button>
           </div>
         </section>
@@ -305,288 +538,398 @@ class ProteinTrackerCard extends HTMLElement {
         <ha-button id="btn-reset" appearance="outlined" variant="neutral">Heutige Einträge löschen</ha-button>
         <ha-button id="btn-close" appearance="plain" variant="neutral">Schließen</ha-button>
       </div>
-    `;
+    `
 
-    this.appendChild(this._dialog);
+    this.appendChild(this._dialog)
   }
 
   _attachCardEvents() {
-    this._root.addEventListener("click", () => this._openDialog());
+    this._root.addEventListener("click", () => this._openDialog())
 
     this._root.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter" || ev.key === " ") {
-        ev.preventDefault();
-        this._openDialog();
+        ev.preventDefault()
+        this._openDialog()
       }
-    });
+    })
   }
 
   _attachDialogEvents() {
-    this._dialog.querySelector("#btn-direct").addEventListener("click", () => this._handleAddDirect());
-    this._dialog.querySelector("#btn-food").addEventListener("click", () => this._handleAddFood());
-    this._dialog.querySelector("#btn-goal").addEventListener("click", () => this._handleSetGoal());
-    this._dialog.querySelector("#btn-reset").addEventListener("click", () => this._handleResetToday());
+    this._dialog.querySelector("#btn-direct").addEventListener("click", () => this._handleAddDirect())
+    this._dialog.querySelector("#btn-food").addEventListener("click", () => this._handleAddFood())
+    this._dialog.querySelector("#btn-goal").addEventListener("click", () => this._handleSetGoals())
+    this._dialog.querySelector("#btn-reset").addEventListener("click", () => this._handleResetToday())
     this._dialog.querySelector("#btn-close").addEventListener("click", () => {
-      this._dialog.open = false;
-    });
+      this._dialog.open = false
+    })
   }
 
   _openDialog() {
-    if (!this._config.entity) {
-      return;
+    if (!this._config.entity && !this._config.calorie_entity) {
+      return
     }
 
-    this._dialog.heading = this._config.name || PT_DEFAULT_TITLE;
-    this._dialog.open = true;
-    this._syncDialogFields();
-    this._setDialogStatus("", false);
+    this._dialog.heading = this._config.name || PT_DEFAULT_TITLE
+    this._dialog.open = true
+    this._syncDialogFields()
+    this._setDialogStatus("", false)
   }
 
-  _setProgress(percent) {
-    const progressEl = this._root.querySelector("#progress");
-    const progressFallback = this._root.querySelector("#progress-fallback");
-    const progressFill = this._root.querySelector("#progress-fill");
+  _setProgress(metricKey, percent) {
+    const progressEl = this._root.querySelector(`#${metricKey}-progress`)
+    const progressFallback = this._root.querySelector(`#${metricKey}-progress-fallback`)
+    const progressFill = this._root.querySelector(`#${metricKey}-progress-fill`)
 
-    const normalized = Number.isFinite(percent) ? Math.max(0, Math.min(percent, 100)) : 0;
+    const normalized = Number.isFinite(percent) ? Math.max(0, Math.min(percent, 100)) : 0
 
     if (customElements.get("ha-progress-bar")) {
-      progressEl.value = normalized;
+      progressEl.value = normalized
     }
 
-    progressEl.style.display = "none";
-    progressFallback.style.display = "block";
-    progressFill.style.width = `${normalized}%`;
+    progressEl.style.display = "none"
+    progressFallback.style.display = "block"
+    progressFill.style.width = `${normalized}%`
   }
 
   _updateSensorPreview() {
     if (!this._dialog) {
-      return;
+      return
     }
 
-    const host = this._dialog.querySelector("#sensor-standard");
+    const host = this._dialog.querySelector("#sensor-standard")
     if (!host) {
-      return;
+      return
     }
 
-    if (!this._config.entity) {
-      this._sensorPreview = null;
-      host.innerHTML = '<div class="sensor-fallback">Keine Tracker-Entity ausgewählt.</div>';
-      return;
+    const entities = [this._config.entity, this._config.calorie_entity].filter(Boolean)
+    if (entities.length === 0) {
+      host.innerHTML = '<div class="sensor-fallback">Keine Tracker-Entity ausgewählt.</div>'
+      return
     }
 
-    const SensorRow = customElements.get("hui-sensor-entity-row");
-    if (SensorRow) {
-      if (!this._sensorPreview || this._sensorPreview.tagName.toLowerCase() !== "hui-sensor-entity-row") {
-        host.innerHTML = "";
-        this._sensorPreview = document.createElement("hui-sensor-entity-row");
-        host.appendChild(this._sensorPreview);
-        this._sensorPreviewEntity = "";
-      }
-
-      if (this._sensorPreviewEntity !== this._config.entity) {
-        this._sensorPreview.setConfig({ entity: this._config.entity });
-        this._sensorPreviewEntity = this._config.entity;
-      }
-
-      this._sensorPreview.hass = this._hass;
-      return;
-    }
-
-    const EntitiesCard = customElements.get("hui-entities-card");
+    const EntitiesCard = customElements.get("hui-entities-card")
     if (EntitiesCard) {
       if (!this._sensorPreview || this._sensorPreview.tagName.toLowerCase() !== "hui-entities-card") {
-        host.innerHTML = "";
-        this._sensorPreview = document.createElement("hui-entities-card");
-        host.appendChild(this._sensorPreview);
-        this._sensorPreviewEntity = "";
+        host.innerHTML = ""
+        this._sensorPreview = document.createElement("hui-entities-card")
+        host.appendChild(this._sensorPreview)
+        this._sensorPreviewKey = ""
       }
 
-      if (this._sensorPreviewEntity !== this._config.entity) {
+      const previewKey = entities.join("|")
+      if (this._sensorPreviewKey !== previewKey) {
         this._sensorPreview.setConfig({
           type: "entities",
-          entities: [{ entity: this._config.entity }],
+          entities: entities.map((entity) => ({ entity })),
           show_header_toggle: false,
           state_color: true
-        });
-        this._sensorPreviewEntity = this._config.entity;
+        })
+        this._sensorPreviewKey = previewKey
       }
 
-      this._sensorPreview.hass = this._hass;
-      return;
+      this._sensorPreview.hass = this._hass
+      return
     }
 
-    this._sensorPreview = null;
-    host.innerHTML = `<div class="sensor-fallback">${this._config.entity}</div>`;
+    host.innerHTML = `<div class="sensor-fallback">${entities.join(" | ")}</div>`
+  }
+
+  _metricState(metricKey) {
+    const metric = PT_METRICS[metricKey]
+    const entity = metricKey === "protein" ? this._config.entity : this._config.calorie_entity
+    const goalEntity = metricKey === "protein" ? this._config.goal_entity : this._config.calorie_goal_entity
+
+    if (!entity) {
+      return { missing: true, entity, goalEntity, reason: this._multipleCandidates ? "multiple" : "setup" }
+    }
+
+    const state = this._hass?.states?.[entity]
+    if (!state) {
+      return { missing: true, entity, goalEntity, reason: "entity_missing" }
+    }
+
+    const attrs = state.attributes || {}
+    const today = Number.parseFloat(state.state) || 0
+    const goalState = goalEntity ? this._hass.states[goalEntity] : null
+    const goal = goalState ? Number.parseFloat(goalState.state) || 0 : Number.parseFloat(attrs.goal) || 0
+    const remainingAttr = Number.parseFloat(attrs.remaining)
+    const remaining = Number.isFinite(remainingAttr) ? remainingAttr : Math.max(goal - today, 0)
+    const percent = goal > 0 ? Math.min((today / goal) * 100, 100) : 0
+
+    return {
+      missing: false,
+      entity,
+      goalEntity,
+      today,
+      goal,
+      remaining,
+      percent,
+      metric
+    }
+  }
+
+  _renderMetric(metricKey, metricState) {
+    const valueEl = this._root.querySelector(`#${metricKey}-value`)
+    const metaLeft = this._root.querySelector(`#${metricKey}-meta-left`)
+    const metaRight = this._root.querySelector(`#${metricKey}-meta-right`)
+    const metric = PT_METRICS[metricKey]
+
+    if (metricState.missing) {
+      valueEl.textContent = "-"
+      this._setProgress(metricKey, 0)
+
+      if (metricState.reason === "multiple") {
+        metaLeft.textContent = "Mehrere Tracker gefunden, bitte entity in der Card setzen"
+        metaRight.textContent = ""
+        return
+      }
+
+      if (metricState.reason === "setup") {
+        metaLeft.textContent = "Bitte Integration anlegen"
+        metaRight.textContent = ""
+        return
+      }
+
+      metaLeft.textContent = "Entity nicht gefunden"
+      metaRight.textContent = metricState.entity || ""
+      return
+    }
+
+    valueEl.textContent = `${this._formatValue(metricState.today, metricKey)} ${metric.unit}`
+    this._setProgress(metricKey, metricState.percent)
+    metaLeft.textContent = `${this._formatValue(metricState.today, metricKey)} / ${this._formatValue(metricState.goal, metricKey)} ${metric.unit} (${metricState.percent.toFixed(0)}%)`
+    metaRight.textContent = `Rest: ${this._formatValue(metricState.remaining, metricKey)} ${metric.unit}`
   }
 
   _renderState() {
-    const titleEl = this._root.querySelector("#title");
-    const valueEl = this._root.querySelector("#value");
-    const metaLeft = this._root.querySelector("#meta-left");
-    const metaRight = this._root.querySelector("#meta-right");
-
-    titleEl.textContent = this._config.name || PT_DEFAULT_TITLE;
-
-    if (!this._config.entity) {
-      valueEl.textContent = "-";
-      this._setProgress(0);
-      metaLeft.textContent = this._multipleCandidates
-        ? "Mehrere Tracker gefunden, bitte entity in der Card setzen"
-        : "Bitte Integration anlegen";
-      metaRight.textContent = "";
-      return;
-    }
-
-    const state = this._hass.states[this._config.entity];
-    if (!state) {
-      valueEl.textContent = "-";
-      this._setProgress(0);
-      metaLeft.textContent = "Entity nicht gefunden";
-      metaRight.textContent = this._config.entity;
-      return;
-    }
-
-    const attrs = state.attributes || {};
-    const today = Number.parseFloat(state.state) || 0;
-
-    if (!this._config.goal_entity) {
-      this._config.goal_entity = this._deriveGoalEntity(this._config.entity);
-    }
-
-    const goalState = this._config.goal_entity ? this._hass.states[this._config.goal_entity] : null;
-    const goal = goalState ? Number.parseFloat(goalState.state) || 0 : Number.parseFloat(attrs.goal) || 0;
-    const remainingAttr = Number.parseFloat(attrs.remaining);
-    const remaining = Number.isFinite(remainingAttr) ? remainingAttr : Math.max(goal - today, 0);
-    const percent = goal > 0 ? Math.min((today / goal) * 100, 100) : 0;
-
-    valueEl.textContent = `${today.toFixed(1)} g`;
-    this._setProgress(percent);
-    metaLeft.textContent = `${today.toFixed(1)} / ${goal.toFixed(1)} g (${percent.toFixed(0)}%)`;
-    metaRight.textContent = `Rest: ${remaining.toFixed(1)} g`;
-
-    this._syncDialogFields();
+    this._root.querySelector("#title").textContent = this._config.name || PT_DEFAULT_TITLE
+    this._renderMetric("protein", this._metricState("protein"))
+    this._renderMetric("calories", this._metricState("calories"))
+    this._syncDialogFields()
   }
 
   _syncDialogFields() {
     if (!this._dialog) {
-      return;
+      return
     }
 
-    this._updateSensorPreview();
+    this._updateSensorPreview()
 
-    const goalInput = this._dialog.querySelector("#input-goal");
-    if (!this._config.entity) {
-      return;
+    const proteinGoalState = this._metricState("protein")
+    const calorieGoalState = this._metricState("calories")
+    const proteinGoalInput = this._dialog.querySelector("#input-goal-protein")
+    const calorieGoalInput = this._dialog.querySelector("#input-goal-calories")
+
+    if (!proteinGoalInput.matches(":focus") && !proteinGoalState.missing) {
+      proteinGoalInput.value = String(Math.round(proteinGoalState.goal))
     }
 
-    const state = this._hass.states[this._config.entity];
-    if (!state) {
-      return;
+    if (!calorieGoalInput.matches(":focus") && !calorieGoalState.missing) {
+      calorieGoalInput.value = String(Math.round(calorieGoalState.goal))
+    }
+  }
+
+  _readOptionalNumber(input, { allowZero = false } = {}) {
+    const raw = String(input.value || "").trim()
+    if (!raw) {
+      return { provided: false, valid: true, value: null }
     }
 
-    const attrs = state.attributes || {};
-    const goalState = this._config.goal_entity ? this._hass.states[this._config.goal_entity] : null;
-    const goal = goalState ? Number.parseFloat(goalState.state) || 0 : Number.parseFloat(attrs.goal) || 0;
+    const value = Number.parseFloat(raw)
+    const valid = Number.isFinite(value) && (allowZero ? value >= 0 : value > 0)
+    return { provided: true, valid, value }
+  }
 
-    if (!goalInput.matches(":focus")) {
-      goalInput.value = String(Math.round(goal));
+  async _callServiceRaw(metricKey, service, payload) {
+    const data = { ...payload }
+    const entity = metricKey === "protein" ? this._config.entity : this._config.calorie_entity
+
+    if (entity) {
+      data.entity_id = entity
+    }
+
+    const userId = this._currentUserId()
+    if (userId) {
+      data.user_id = userId
+    }
+
+    if (!data.entity_id && !data.user_id) {
+      throw new Error("Keine Tracker-Entity konfiguriert.")
+    }
+
+    await this._hass.callService("protein_tracker", service, data)
+  }
+
+  async _runActions(actions) {
+    if (actions.length === 0) {
+      throw new Error("Keine Werte eingetragen.")
+    }
+
+    for (const action of actions) {
+      await this._callServiceRaw(action.metricKey, action.service, action.payload)
     }
   }
 
   async _handleAddDirect() {
-    const input = this._dialog.querySelector("#input-direct");
-    const grams = Number.parseFloat(input.value);
+    const protein = this._readOptionalNumber(this._dialog.querySelector("#input-direct-protein"))
+    const calories = this._readOptionalNumber(this._dialog.querySelector("#input-direct-calories"))
 
-    if (!Number.isFinite(grams) || grams <= 0) {
-      this._setDialogStatus("Bitte gültige Proteinmenge eingeben.", true);
-      return;
+    if (!protein.provided && !calories.provided) {
+      this._setDialogStatus("Bitte Protein oder Kalorien eintragen.", true)
+      return
     }
 
-    await this._callService("add_protein", { grams });
-    input.value = "";
-  }
-
-  async _handleAddFood() {
-    const foodInput = this._dialog.querySelector("#input-food");
-    const p100Input = this._dialog.querySelector("#input-p100");
-
-    const food_grams = Number.parseFloat(foodInput.value);
-    const protein_per_100g = Number.parseFloat(p100Input.value);
-
-    if (!Number.isFinite(food_grams) || food_grams <= 0 || !Number.isFinite(protein_per_100g) || protein_per_100g <= 0) {
-      this._setDialogStatus("Bitte beide Werte > 0 eingeben.", true);
-      return;
-    }
-
-    await this._callService("add_food", { food_grams, protein_per_100g });
-    foodInput.value = "";
-    p100Input.value = "";
-  }
-
-  async _handleSetGoal() {
-    const input = this._dialog.querySelector("#input-goal");
-    const goal_grams = Number.parseFloat(input.value);
-
-    if (!Number.isFinite(goal_grams) || goal_grams < 0) {
-      this._setDialogStatus("Bitte gültiges Ziel (>= 0) eingeben.", true);
-      return;
-    }
-
-    await this._callService("set_goal", { goal_grams });
-  }
-
-  async _handleResetToday() {
-    await this._callService("reset_user", {});
-  }
-
-  async _callService(service, payload) {
-    if (!this._config.entity) {
-      this._setDialogStatus("Keine Tracker-Entity konfiguriert.", true);
-      return;
-    }
-
-    const data = {
-      entity_id: this._config.entity,
-      ...payload
-    };
-
-    const userId = this._currentUserId();
-    if (userId) {
-      data.user_id = userId;
+    if ((protein.provided && !protein.valid) || (calories.provided && !calories.valid)) {
+      this._setDialogStatus("Bitte nur Werte > 0 eingeben.", true)
+      return
     }
 
     try {
-      await this._hass.callService("protein_tracker", service, data);
-      this._setDialogStatus("", false);
+      await this._runActions([
+        protein.provided
+          ? { metricKey: "protein", service: PT_METRICS.protein.directService, payload: { [PT_METRICS.protein.directField]: protein.value } }
+          : null,
+        calories.provided
+          ? { metricKey: "calories", service: PT_METRICS.calories.directService, payload: { [PT_METRICS.calories.directField]: calories.value } }
+          : null
+      ].filter(Boolean))
+
+      this._dialog.querySelector("#input-direct-protein").value = ""
+      this._dialog.querySelector("#input-direct-calories").value = ""
+      this._setDialogStatus("", false)
     } catch (error) {
-      this._setDialogStatus(`Fehler: ${error?.message || error}`, true);
+      this._setDialogStatus(`Fehler: ${error?.message || error}`, true)
+    }
+  }
+
+  async _handleAddFood() {
+    const food = this._readOptionalNumber(this._dialog.querySelector("#input-food"))
+    const proteinPer100 = this._readOptionalNumber(this._dialog.querySelector("#input-p100"))
+    const caloriesPer100 = this._readOptionalNumber(this._dialog.querySelector("#input-c100"))
+
+    if (!food.provided || !food.valid) {
+      this._setDialogStatus("Bitte eine gültige Essensmenge > 0 eingeben.", true)
+      return
+    }
+
+    if (!proteinPer100.provided && !caloriesPer100.provided) {
+      this._setDialogStatus("Bitte Protein / 100g oder Kcal / 100g eingeben.", true)
+      return
+    }
+
+    if ((proteinPer100.provided && !proteinPer100.valid) || (caloriesPer100.provided && !caloriesPer100.valid)) {
+      this._setDialogStatus("Bitte nur Werte > 0 eingeben.", true)
+      return
+    }
+
+    try {
+      await this._runActions([
+        proteinPer100.provided
+          ? {
+              metricKey: "protein",
+              service: PT_METRICS.protein.foodService,
+              payload: {
+                food_grams: food.value,
+                [PT_METRICS.protein.foodField]: proteinPer100.value
+              }
+            }
+          : null,
+        caloriesPer100.provided
+          ? {
+              metricKey: "calories",
+              service: PT_METRICS.calories.foodService,
+              payload: {
+                food_grams: food.value,
+                [PT_METRICS.calories.foodField]: caloriesPer100.value
+              }
+            }
+          : null
+      ].filter(Boolean))
+
+      this._dialog.querySelector("#input-food").value = ""
+      this._dialog.querySelector("#input-p100").value = ""
+      this._dialog.querySelector("#input-c100").value = ""
+      this._setDialogStatus("", false)
+    } catch (error) {
+      this._setDialogStatus(`Fehler: ${error?.message || error}`, true)
+    }
+  }
+
+  async _handleSetGoals() {
+    const proteinGoal = this._readOptionalNumber(this._dialog.querySelector("#input-goal-protein"), { allowZero: true })
+    const calorieGoal = this._readOptionalNumber(this._dialog.querySelector("#input-goal-calories"), { allowZero: true })
+
+    if (!proteinGoal.provided && !calorieGoal.provided) {
+      this._setDialogStatus("Bitte mindestens ein Ziel eingeben.", true)
+      return
+    }
+
+    if ((proteinGoal.provided && !proteinGoal.valid) || (calorieGoal.provided && !calorieGoal.valid)) {
+      this._setDialogStatus("Bitte gültige Ziele (>= 0) eingeben.", true)
+      return
+    }
+
+    try {
+      await this._runActions([
+        proteinGoal.provided
+          ? { metricKey: "protein", service: PT_METRICS.protein.goalService, payload: { [PT_METRICS.protein.goalField]: proteinGoal.value } }
+          : null,
+        calorieGoal.provided
+          ? { metricKey: "calories", service: PT_METRICS.calories.goalService, payload: { [PT_METRICS.calories.goalField]: calorieGoal.value } }
+          : null
+      ].filter(Boolean))
+
+      this._setDialogStatus("", false)
+    } catch (error) {
+      this._setDialogStatus(`Fehler: ${error?.message || error}`, true)
+    }
+  }
+
+  async _handleResetToday() {
+    try {
+      await this._runActions([
+        { metricKey: "protein", service: PT_METRICS.protein.resetService, payload: {} },
+        { metricKey: "calories", service: PT_METRICS.calories.resetService, payload: {} }
+      ])
+      this._setDialogStatus("", false)
+    } catch (error) {
+      this._setDialogStatus(`Fehler: ${error?.message || error}`, true)
     }
   }
 
   _setDialogStatus(message, isError) {
-    const status = this._dialog.querySelector("#dialog-status");
-    status.textContent = message || "";
-    status.classList.toggle("error", Boolean(isError));
+    const status = this._dialog.querySelector("#dialog-status")
+    status.textContent = message || ""
+    status.classList.toggle("error", Boolean(isError))
 
-    window.clearTimeout(this._statusTimer);
+    window.clearTimeout(this._statusTimer)
     if (!message || !isError) {
-      return;
+      return
     }
 
     this._statusTimer = window.setTimeout(() => {
-      status.textContent = "";
-      status.classList.remove("error");
-    }, 2500);
+      status.textContent = ""
+      status.classList.remove("error")
+    }, 2500)
   }
 }
 
+class CalorieTrackerCard extends ProteinTrackerCard {}
+
 if (!customElements.get("protein-tracker-card")) {
-  customElements.define("protein-tracker-card", ProteinTrackerCard);
+  customElements.define("protein-tracker-card", ProteinTrackerCard)
 }
 
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "protein-tracker-card",
-  name: "Protein Tracker Card",
-  description: `Protein summary card with modal input (${PT_CARD_VERSION})`
-});
+if (!customElements.get("calorie-tracker-card")) {
+  customElements.define("calorie-tracker-card", CalorieTrackerCard)
+}
+
+window.customCards = window.customCards || []
+
+if (!window.customCards.some((card) => card.type === "protein-tracker-card")) {
+  window.customCards.push({
+    type: "protein-tracker-card",
+    name: "Protein Tracker Card",
+    description: `Combined protein and calorie tracker card (${PT_CARD_VERSION})`
+  })
+}

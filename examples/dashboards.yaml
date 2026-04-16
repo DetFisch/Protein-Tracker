@@ -7,7 +7,7 @@ views:
     badges: []
     cards:
       - type: custom:protein-tracker-card
-        entity: sensor.dashboard1
+        entity: sensor.dashboard1_protein
         name: Protein Tracker - Dashboard 1
 
   - title: Protein Dashboard 2
@@ -15,5 +15,5 @@ views:
     badges: []
     cards:
       - type: custom:protein-tracker-card
-        entity: sensor.dashboard2
+        entity: sensor.dashboard2_protein
         name: Protein Tracker - Dashboard 2

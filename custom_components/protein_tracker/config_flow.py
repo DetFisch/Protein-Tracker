@@ -10,9 +10,11 @@ from homeassistant import config_entries
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
+    CONF_CALORIE_GOAL,
     CONF_GOAL,
     CONF_ID,
     CONF_NAME,
+    DEFAULT_CALORIE_GOAL,
     DEFAULT_GOAL,
     DOMAIN,
 )
@@ -42,6 +44,10 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_ID): cv.slug,
                     vol.Required(CONF_NAME): str,
                     vol.Required(CONF_GOAL, default=DEFAULT_GOAL): vol.Coerce(float),
+                    vol.Required(
+                        CONF_CALORIE_GOAL,
+                        default=DEFAULT_CALORIE_GOAL,
+                    ): vol.Coerce(float),
                 }
             ),
         )

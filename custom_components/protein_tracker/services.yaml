@@ -107,9 +107,131 @@ reset_user:
   fields:
     entity_id:
       name: Tracker Entity
-      description: Recommended. Sensor or goal-number entity.
+      description: Recommended. Protein sensor or protein goal-number entity.
       required: false
       example: sensor.detjon_protein
+      selector:
+        entity:
+    user_id:
+      name: Tracker ID
+      description: Optional fallback to target tracker by id.
+      required: false
+      example: user1
+      selector:
+        text:
+
+add_calories:
+  name: Add Calories
+  description: Add consumed calories directly in kcal.
+  fields:
+    entity_id:
+      name: Tracker Entity
+      description: Recommended. Example sensor.detjon_calories.
+      required: false
+      example: sensor.detjon_calories
+      selector:
+        entity:
+          domain: sensor
+    user_id:
+      name: Tracker ID
+      description: Optional fallback to target tracker by id.
+      required: false
+      example: user1
+      selector:
+        text:
+    calories:
+      name: Calories
+      description: Calories in kcal.
+      required: true
+      example: 540
+      selector:
+        number:
+          min: 0.1
+          max: 10000
+          step: 0.1
+          mode: box
+
+add_calorie_food:
+  name: Add Calorie Food
+  description: Add consumed calories by entering food grams and calories per 100g.
+  fields:
+    entity_id:
+      name: Tracker Entity
+      description: Recommended. Example sensor.alex_calories.
+      required: false
+      example: sensor.alex_calories
+      selector:
+        entity:
+          domain: sensor
+    user_id:
+      name: Tracker ID
+      description: Optional fallback to target tracker by id.
+      required: false
+      example: user2
+      selector:
+        text:
+    food_grams:
+      name: Food grams
+      description: How many grams of this food were eaten.
+      required: true
+      example: 180
+      selector:
+        number:
+          min: 0.1
+          max: 5000
+          step: 0.1
+          mode: box
+    calories_per_100g:
+      name: Calories per 100g
+      description: Calorie content of the food per 100 grams.
+      required: true
+      example: 250
+      selector:
+        number:
+          min: 0.1
+          max: 2000
+          step: 0.1
+          mode: box
+
+set_calorie_goal:
+  name: Set Calorie Goal
+  description: Set the daily calorie goal.
+  fields:
+    entity_id:
+      name: Tracker Entity
+      description: Recommended. Calorie sensor or calorie goal-number entity.
+      required: false
+      example: sensor.detjon_calories
+      selector:
+        entity:
+    user_id:
+      name: Tracker ID
+      description: Optional fallback to target tracker by id.
+      required: false
+      example: user1
+      selector:
+        text:
+    goal_calories:
+      name: Goal calories
+      description: Daily calorie target in kcal.
+      required: true
+      example: 2200
+      selector:
+        number:
+          min: 0
+          max: 10000
+          step: 1
+          mode: box
+
+reset_calories:
+  name: Reset Calories Today
+  description: Reset today's consumed calories to 0.
+  fields:
+    entity_id:
+      name: Tracker Entity
+      description: Recommended. Calorie sensor or calorie goal-number entity.
+      required: false
+      example: sensor.detjon_calories
       selector:
         entity:
     user_id:

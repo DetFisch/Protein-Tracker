@@ -3,11 +3,12 @@
     "step": {
       "user": {
         "title": "Protein Tracker",
-        "description": "Erstelle eine unabhaengige Tracker-Instanz.",
+        "description": "Erstelle eine unabhaengige Tracker-Instanz fuer Protein und Kalorien.",
         "data": {
           "id": "Tracker-ID",
           "name": "Anzeigename",
-          "goal": "Tagesziel (g)"
+          "goal": "Protein-Tagesziel (g)",
+          "calorie_goal": "Kalorien-Tagesziel (kcal)"
         }
       }
     },

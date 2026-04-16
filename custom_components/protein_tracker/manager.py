@@ -12,15 +12,21 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    ATTR_CALORIE_GOAL,
+    ATTR_CALORIES_PROGRESS_PERCENT,
+    ATTR_CALORIES_REMAINING,
+    ATTR_CALORIES_TODAY_TOTAL,
     ATTR_DATE,
     ATTR_GOAL,
     ATTR_PROGRESS_PERCENT,
     ATTR_REMAINING,
     ATTR_TODAY_TOTAL,
+    CONF_CALORIE_GOAL,
     CONF_GOAL,
     CONF_ID,
     CONF_NAME,
     CONF_USERS,
+    DEFAULT_CALORIE_GOAL,
     DEFAULT_GOAL,
     DOMAIN,
     STORAGE_KEY,
@@ -63,7 +69,14 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
                 CONF_ID: user_id,
                 CONF_NAME: user_conf.get(CONF_NAME, user_id),
                 CONF_GOAL: float(existing.get(CONF_GOAL, user_conf.get(CONF_GOAL, DEFAULT_GOAL))),
+                CONF_CALORIE_GOAL: float(
+                    existing.get(
+                        CONF_CALORIE_GOAL,
+                        user_conf.get(CONF_CALORIE_GOAL, DEFAULT_CALORIE_GOAL),
+                    )
+                ),
                 ATTR_TODAY_TOTAL: float(existing.get(ATTR_TODAY_TOTAL, 0.0)),
+                ATTR_CALORIES_TODAY_TOTAL: float(existing.get(ATTR_CALORIES_TODAY_TOTAL, 0.0)),
                 ATTR_DATE: str(existing.get(ATTR_DATE, today)),
             }
 
@@ -139,11 +152,60 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         await self._save()
         self.async_set_updated_data(self._public_data())
 
+    async def async_add_calories(self, user_id: str, calories: float) -> None:
+        """Add calories for one user."""
+        if calories <= 0:
+            raise HomeAssistantError("calories must be > 0")
+
+        self._rollover_if_needed(self._today_key())
+        user = self._get_user(user_id)
+        user[ATTR_CALORIES_TODAY_TOTAL] = float(user[ATTR_CALORIES_TODAY_TOTAL]) + float(calories)
+
+        await self._save()
+        self.async_set_updated_data(self._public_data())
+
+    async def async_add_calorie_food(
+        self,
+        user_id: str,
+        food_grams: float,
+        calories_per_100g: float,
+    ) -> float:
+        """Calculate calories from food amount and add them."""
+        if food_grams <= 0:
+            raise HomeAssistantError("food_grams must be > 0")
+        if calories_per_100g <= 0:
+            raise HomeAssistantError("calories_per_100g must be > 0")
+
+        calories = (food_grams * calories_per_100g) / 100.0
+        await self.async_add_calories(user_id, calories)
+        return calories
+
+    async def async_set_calorie_goal(self, user_id: str, goal_calories: float) -> None:
+        """Set calorie goal for one user."""
+        if goal_calories < 0:
+            raise HomeAssistantError("goal_calories must be >= 0")
+
+        self._rollover_if_needed(self._today_key())
+        user = self._get_user(user_id)
+        user[CONF_CALORIE_GOAL] = float(goal_calories)
+
+        await self._save()
+        self.async_set_updated_data(self._public_data())
+
     async def async_reset_user(self, user_id: str) -> None:
-        """Reset current day for one user to 0."""
+        """Reset current-day protein for one user to 0."""
         self._rollover_if_needed(self._today_key())
         user = self._get_user(user_id)
         user[ATTR_TODAY_TOTAL] = 0.0
+
+        await self._save()
+        self.async_set_updated_data(self._public_data())
+
+    async def async_reset_calories(self, user_id: str) -> None:
+        """Reset current-day calories for one user to 0."""
+        self._rollover_if_needed(self._today_key())
+        user = self._get_user(user_id)
+        user[ATTR_CALORIES_TODAY_TOTAL] = 0.0
 
         await self._save()
         self.async_set_updated_data(self._public_data())
@@ -156,6 +218,7 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
 
             user[ATTR_DATE] = today
             user[ATTR_TODAY_TOTAL] = 0.0
+            user[ATTR_CALORIES_TODAY_TOTAL] = 0.0
             changed = True
 
         return changed
@@ -170,6 +233,14 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
             goal = float(user[CONF_GOAL])
             remaining = max(goal - today_total, 0.0)
             progress_percent = 0.0 if goal <= 0 else min((today_total / goal) * 100.0, 999.0)
+            calories_today_total = float(user[ATTR_CALORIES_TODAY_TOTAL])
+            calorie_goal = float(user[CONF_CALORIE_GOAL])
+            calories_remaining = max(calorie_goal - calories_today_total, 0.0)
+            calories_progress_percent = (
+                0.0
+                if calorie_goal <= 0
+                else min((calories_today_total / calorie_goal) * 100.0, 999.0)
+            )
 
             users[user_id] = {
                 CONF_ID: user_id,
@@ -179,6 +250,10 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
                 CONF_GOAL: round(goal, 2),
                 ATTR_REMAINING: round(remaining, 2),
                 ATTR_PROGRESS_PERCENT: round(progress_percent, 2),
+                ATTR_CALORIES_TODAY_TOTAL: round(calories_today_total, 2),
+                CONF_CALORIE_GOAL: round(calorie_goal, 2),
+                ATTR_CALORIES_REMAINING: round(calories_remaining, 2),
+                ATTR_CALORIES_PROGRESS_PERCENT: round(calories_progress_percent, 2),
             }
 
         return {CONF_USERS: users}

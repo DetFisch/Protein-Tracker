@@ -5,6 +5,8 @@ from __future__ import annotations
 
 SENSOR_SUFFIX = "Protein Tracker"
 GOAL_SUFFIX = "Protein Ziel"
+CALORIE_SENSOR_SUFFIX = "Kalorien Tracker"
+CALORIE_GOAL_SUFFIX = "Kalorien Ziel"
 
 
 def _normalize_base_name(base_name: str) -> str:
@@ -13,7 +15,15 @@ def _normalize_base_name(base_name: str) -> str:
         return ""
 
     lowered = base.casefold()
-    for marker in ("protein tracker", "protein ziel", "protein goal"):
+    for marker in (
+        "protein tracker",
+        "protein ziel",
+        "protein goal",
+        "kalorien tracker",
+        "kalorien ziel",
+        "calorie tracker",
+        "calorie goal",
+    ):
         idx = lowered.find(marker)
         if idx == -1:
             continue
@@ -47,3 +57,13 @@ def tracker_display_name(base_name: str) -> str:
 def goal_display_name(base_name: str) -> str:
     """Return goal-entity display name."""
     return _with_suffix(base_name, GOAL_SUFFIX)
+
+
+def calorie_tracker_display_name(base_name: str) -> str:
+    """Return calorie sensor/device display name."""
+    return _with_suffix(base_name, CALORIE_SENSOR_SUFFIX)
+
+
+def calorie_goal_display_name(base_name: str) -> str:
+    """Return calorie goal-entity display name."""
+    return _with_suffix(base_name, CALORIE_GOAL_SUFFIX)

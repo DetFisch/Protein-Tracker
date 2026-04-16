@@ -3,11 +3,12 @@
     "step": {
       "user": {
         "title": "Protein Tracker",
-        "description": "Create an independent tracker instance.",
+        "description": "Create an independent tracker instance for protein and calories.",
         "data": {
           "id": "Tracker ID",
           "name": "Display name",
-          "goal": "Daily goal (g)"
+          "goal": "Daily protein goal (g)",
+          "calorie_goal": "Daily calorie goal (kcal)"
         }
       }
     },

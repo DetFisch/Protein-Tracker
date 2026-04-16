@@ -17,25 +17,34 @@ from homeassistant.helpers.event import async_track_time_change
 
 from .const import (
     ATTR_USER_ID,
+    CONF_CALORIE_GOAL,
     CONF_GOAL,
     CONF_ID,
     CONF_NAME,
     CONF_USERS,
+    DEFAULT_CALORIE_GOAL,
     DATA_ENTRIES,
     DATA_MANAGER,
     DATA_SERVICES_REGISTERED,
     DATA_UNSUB_RESET,
     DEFAULT_GOAL,
     DOMAIN,
+    FIELD_CALORIES,
+    FIELD_CALORIES_PER_100G,
     FIELD_ENTITY_ID,
     FIELD_FOOD_GRAMS,
+    FIELD_GOAL_CALORIES,
     FIELD_GOAL_GRAMS,
     FIELD_GRAMS,
     FIELD_PROTEIN_PER_100G,
     FIELD_USER_ID,
+    SERVICE_ADD_CALORIE_FOOD,
+    SERVICE_ADD_CALORIES,
     SERVICE_ADD_FOOD,
     SERVICE_ADD_PROTEIN,
+    SERVICE_RESET_CALORIES,
     SERVICE_RESET_USER,
+    SERVICE_SET_CALORIE_GOAL,
     SERVICE_SET_GOAL,
     STORAGE_KEY,
 )
@@ -50,6 +59,7 @@ USER_SCHEMA = vol.Schema(
         vol.Required(CONF_ID): cv.slug,
         vol.Optional(CONF_NAME): cv.string,
         vol.Optional(CONF_GOAL, default=DEFAULT_GOAL): vol.Coerce(float),
+        vol.Optional(CONF_CALORIE_GOAL, default=DEFAULT_CALORIE_GOAL): vol.Coerce(float),
     }
 )
 
@@ -85,11 +95,36 @@ SERVICE_SCHEMA_ADD_FOOD = vol.Schema(
     }
 )
 
+SERVICE_SCHEMA_ADD_CALORIES = vol.Schema(
+    {
+        vol.Optional(FIELD_USER_ID): cv.slug,
+        vol.Optional(FIELD_ENTITY_ID): cv.entity_id,
+        vol.Required(FIELD_CALORIES): vol.Coerce(float),
+    }
+)
+
+SERVICE_SCHEMA_ADD_CALORIE_FOOD = vol.Schema(
+    {
+        vol.Optional(FIELD_USER_ID): cv.slug,
+        vol.Optional(FIELD_ENTITY_ID): cv.entity_id,
+        vol.Required(FIELD_FOOD_GRAMS): vol.Coerce(float),
+        vol.Required(FIELD_CALORIES_PER_100G): vol.Coerce(float),
+    }
+)
+
 SERVICE_SCHEMA_SET_GOAL = vol.Schema(
     {
         vol.Optional(FIELD_USER_ID): cv.slug,
         vol.Optional(FIELD_ENTITY_ID): cv.entity_id,
         vol.Required(FIELD_GOAL_GRAMS): vol.Coerce(float),
+    }
+)
+
+SERVICE_SCHEMA_SET_CALORIE_GOAL = vol.Schema(
+    {
+        vol.Optional(FIELD_USER_ID): cv.slug,
+        vol.Optional(FIELD_ENTITY_ID): cv.entity_id,
+        vol.Required(FIELD_GOAL_CALORIES): vol.Coerce(float),
     }
 )
 
@@ -100,11 +135,18 @@ SERVICE_SCHEMA_RESET_USER = vol.Schema(
     }
 )
 
+SERVICE_SCHEMA_RESET_CALORIES = vol.Schema(
+    {
+        vol.Optional(FIELD_USER_ID): cv.slug,
+        vol.Optional(FIELD_ENTITY_ID): cv.entity_id,
+    }
+)
+
 _SENSOR_ENTITY_PATTERN = re.compile(
-    rf"^sensor\.(?:{DOMAIN}_)?(?P<id>[a-z0-9_]+?)(?:_today)?(?:_[0-9]+)?$"
+    rf"^sensor\.(?:{DOMAIN}_)?(?P<id>[a-z0-9_]+?)(?:_(?:today|protein|calories))?(?:_[0-9]+)?$"
 )
 _NUMBER_ENTITY_PATTERN = re.compile(
-    rf"^number\.(?:{DOMAIN}_)?(?P<id>[a-z0-9_]+?)(?:_goal)?(?:_[0-9]+)?$"
+    rf"^number\.(?:{DOMAIN}_)?(?P<id>[a-z0-9_]+?)(?:_(?:protein_goal|calorie_goal|calories_goal|protein|calories|goal))?(?:_[0-9]+)?$"
 )
 
 
@@ -146,7 +188,8 @@ def _resolve_user_id(hass: HomeAssistant, call_data: dict[str, Any]) -> str:
         return number_match.group("id")
 
     raise HomeAssistantError(
-        "entity_id must match sensor.<id> / number.<id> "
+        "entity_id must match sensor.<id>_protein / sensor.<id>_calories "
+        "or number.<id>_protein / number.<id>_calories "
         "(or legacy protein_tracker naming)"
     )
 
@@ -183,6 +226,9 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             CONF_ID: user_id,
             CONF_NAME: user.get(CONF_NAME, user_id),
             CONF_GOAL: float(user.get(CONF_GOAL, DEFAULT_GOAL)),
+            CONF_CALORIE_GOAL: float(
+                user.get(CONF_CALORIE_GOAL, DEFAULT_CALORIE_GOAL)
+            ),
         }
         hass.async_create_task(
             hass.config_entries.flow.async_init(
@@ -202,6 +248,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     tracker_id = str(entry.data[CONF_ID])
     tracker_name = str(entry.data.get(CONF_NAME, tracker_id))
     goal = float(entry.data.get(CONF_GOAL, DEFAULT_GOAL))
+    calorie_goal = float(entry.data.get(CONF_CALORIE_GOAL, DEFAULT_CALORIE_GOAL))
 
     manager = ProteinTrackerManager(
         hass,
@@ -210,6 +257,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 CONF_ID: tracker_id,
                 CONF_NAME: tracker_name,
                 CONF_GOAL: goal,
+                CONF_CALORIE_GOAL: calorie_goal,
             }
         ],
         storage_key=f"{STORAGE_KEY}.{tracker_id}",
@@ -255,8 +303,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         for service in (
             SERVICE_ADD_PROTEIN,
             SERVICE_ADD_FOOD,
+            SERVICE_ADD_CALORIES,
+            SERVICE_ADD_CALORIE_FOOD,
             SERVICE_SET_GOAL,
+            SERVICE_SET_CALORIE_GOAL,
             SERVICE_RESET_USER,
+            SERVICE_RESET_CALORIES,
         ):
             if hass.services.has_service(DOMAIN, service):
                 hass.services.async_remove(DOMAIN, service)
@@ -285,6 +337,25 @@ async def _register_services(hass: HomeAssistant) -> None:
             float(call.data[FIELD_PROTEIN_PER_100G]),
         )
 
+    async def handle_add_calories(call: ServiceCall) -> None:
+        _ensure_target(call.data)
+        user_id = _resolve_user_id(hass, call.data)
+        manager = _get_manager_for_user_id(hass, user_id)
+        await manager.async_add_calories(
+            user_id,
+            float(call.data[FIELD_CALORIES]),
+        )
+
+    async def handle_add_calorie_food(call: ServiceCall) -> None:
+        _ensure_target(call.data)
+        user_id = _resolve_user_id(hass, call.data)
+        manager = _get_manager_for_user_id(hass, user_id)
+        await manager.async_add_calorie_food(
+            user_id,
+            float(call.data[FIELD_FOOD_GRAMS]),
+            float(call.data[FIELD_CALORIES_PER_100G]),
+        )
+
     async def handle_set_goal(call: ServiceCall) -> None:
         _ensure_target(call.data)
         user_id = _resolve_user_id(hass, call.data)
@@ -294,11 +365,26 @@ async def _register_services(hass: HomeAssistant) -> None:
             float(call.data[FIELD_GOAL_GRAMS]),
         )
 
+    async def handle_set_calorie_goal(call: ServiceCall) -> None:
+        _ensure_target(call.data)
+        user_id = _resolve_user_id(hass, call.data)
+        manager = _get_manager_for_user_id(hass, user_id)
+        await manager.async_set_calorie_goal(
+            user_id,
+            float(call.data[FIELD_GOAL_CALORIES]),
+        )
+
     async def handle_reset_user(call: ServiceCall) -> None:
         _ensure_target(call.data)
         user_id = _resolve_user_id(hass, call.data)
         manager = _get_manager_for_user_id(hass, user_id)
         await manager.async_reset_user(user_id)
+
+    async def handle_reset_calories(call: ServiceCall) -> None:
+        _ensure_target(call.data)
+        user_id = _resolve_user_id(hass, call.data)
+        manager = _get_manager_for_user_id(hass, user_id)
+        await manager.async_reset_calories(user_id)
 
     hass.services.async_register(
         DOMAIN,
@@ -314,13 +400,37 @@ async def _register_services(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN,
+        SERVICE_ADD_CALORIES,
+        handle_add_calories,
+        schema=SERVICE_SCHEMA_ADD_CALORIES,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_ADD_CALORIE_FOOD,
+        handle_add_calorie_food,
+        schema=SERVICE_SCHEMA_ADD_CALORIE_FOOD,
+    )
+    hass.services.async_register(
+        DOMAIN,
         SERVICE_SET_GOAL,
         handle_set_goal,
         schema=SERVICE_SCHEMA_SET_GOAL,
     )
     hass.services.async_register(
         DOMAIN,
+        SERVICE_SET_CALORIE_GOAL,
+        handle_set_calorie_goal,
+        schema=SERVICE_SCHEMA_SET_CALORIE_GOAL,
+    )
+    hass.services.async_register(
+        DOMAIN,
         SERVICE_RESET_USER,
         handle_reset_user,
         schema=SERVICE_SCHEMA_RESET_USER,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_RESET_CALORIES,
+        handle_reset_calories,
+        schema=SERVICE_SCHEMA_RESET_CALORIES,
     )
