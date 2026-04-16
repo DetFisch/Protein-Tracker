@@ -1,7 +1,7 @@
-const PT_CARD_VERSION = "2.14.1"
+const PT_CARD_VERSION = "2.14.3"
 const PT_DEFAULT_TITLE = "Protein Tracker"
-
 const PT_PROGRESS_HEIGHT = 32
+
 
 const PT_METRICS = {
   protein: {
@@ -345,12 +345,12 @@ class ProteinTrackerCard extends HTMLElement {
         }
 
         ha-dialog {
-          --mdc-dialog-min-width: 580px;
-          --mdc-dialog-max-width: 600px;
+          --mdc-dialog-min-width: 650px;
+          --mdc-dialog-max-width: 700px;
           --mdc-dialog-shape-radius: var(--ha-card-border-radius, 12px);
         }
 
-        @media (max-width: 600px) {
+        @media (max-width: 720px) {
           ha-dialog {
             --mdc-dialog-min-width: 95vw;
           }
@@ -370,11 +370,6 @@ class ProteinTrackerCard extends HTMLElement {
           width: 0%;
           background: var(--primary-color);
           transition: width 150ms ease;
-        }
-
-        ha-dialog {
-          --mdc-dialog-min-width: 550px;
-          --mdc-dialog-max-width: 600px;
         }
 
         .meta {
@@ -428,7 +423,7 @@ class ProteinTrackerCard extends HTMLElement {
         }
 
         .field-row.triple {
-          grid-template-columns: 1fr 1fr 1fr auto;
+          grid-template-columns: 1.2fr 1.2fr 1.2fr auto;
         }
 
         .action-btn {
@@ -568,11 +563,15 @@ class ProteinTrackerCard extends HTMLElement {
   }
 
   _attachCardEvents() {
-    this._root.addEventListener("click", () => this._openDialog())
+    this._root.addEventListener("click", (ev) => {
+      ev.stopPropagation()
+      this._openDialog()
+    })
 
     this._root.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter" || ev.key === " ") {
         ev.preventDefault()
+        ev.stopPropagation()
         this._openDialog()
       }
     })
@@ -584,7 +583,14 @@ class ProteinTrackerCard extends HTMLElement {
     this._dialog.querySelector("#btn-goal").addEventListener("click", () => this._handleSetGoals())
     this._dialog.querySelector("#btn-undo").addEventListener("click", () => this._handleUndo())
     this._dialog.querySelector("#btn-reset").addEventListener("click", () => this._handleResetToday())
-    this._dialog.querySelector("#btn-close").addEventListener("click", () => {
+    
+    this._dialog.querySelector("#btn-close").addEventListener("click", (ev) => {
+      ev.stopPropagation()
+      this._dialog.open = false
+    })
+
+    this._dialog.addEventListener("closed", (ev) => {
+      ev.stopPropagation()
       this._dialog.open = false
     })
   }
@@ -595,9 +601,14 @@ class ProteinTrackerCard extends HTMLElement {
     }
 
     this._dialog.heading = this._config.name || PT_DEFAULT_TITLE
-    this._dialog.open = true
     this._syncDialogFields()
     this._setDialogStatus("", false)
+
+    // Force closed state first to ensure clean open
+    this._dialog.open = false
+    setTimeout(() => {
+      this._dialog.open = true
+    }, 10)
   }
 
   _setProgress(metricKey, percent) {
