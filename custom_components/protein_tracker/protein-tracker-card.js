@@ -1,4 +1,4 @@
-const PT_CARD_VERSION = "2.14.5"
+const PT_CARD_VERSION = "2.14.6"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
 
@@ -282,9 +282,7 @@ class ProteinTrackerCard extends HTMLElement {
   }
 
   _renderSkeleton() {
-    this._root = document.createElement("ha-card")
-    this._root.setAttribute("tabindex", "0")
-    this._root.innerHTML = `
+    this.innerHTML = `
       <style>
         :host {
           display: block;
@@ -466,48 +464,50 @@ class ProteinTrackerCard extends HTMLElement {
         }
       </style>
 
-      <div class="card-content">
-        <div id="title" class="title"></div>
+      <ha-card id="protein-tracker-root" tabindex="0">
+        <div class="card-content">
+          <div id="title" class="title"></div>
 
-        <div class="summary-grid">
-          <section class="metric-block">
-            <div class="summary-row">
-              <span class="metric-label">Protein</span>
-              <span id="protein-value" class="value"></span>
-            </div>
-            <div class="progress-wrap">
-              <ha-progress-bar id="protein-progress" value="0"></ha-progress-bar>
-              <div id="protein-progress-fallback" class="progress-fallback">
-                <div id="protein-progress-fill" class="progress-fill"></div>
+          <div class="summary-grid">
+            <section class="metric-block">
+              <div class="summary-row">
+                <span class="metric-label">Protein</span>
+                <span id="protein-value" class="value"></span>
               </div>
-            </div>
-            <div class="meta">
-              <span id="protein-meta-left"></span>
-              <span id="protein-meta-right"></span>
-            </div>
-          </section>
+              <div class="progress-wrap">
+                <ha-progress-bar id="protein-progress" value="0"></ha-progress-bar>
+                <div id="protein-progress-fallback" class="progress-fallback">
+                  <div id="protein-progress-fill" class="progress-fill"></div>
+                </div>
+              </div>
+              <div class="meta">
+                <span id="protein-meta-left"></span>
+                <span id="protein-meta-right"></span>
+              </div>
+            </section>
 
-          <section class="metric-block">
-            <div class="summary-row">
-              <span class="metric-label">Kalorien</span>
-              <span id="calories-value" class="value"></span>
-            </div>
-            <div class="progress-wrap">
-              <ha-progress-bar id="calories-progress" value="0"></ha-progress-bar>
-              <div id="calories-progress-fallback" class="progress-fallback">
-                <div id="calories-progress-fill" class="progress-fill"></div>
+            <section class="metric-block">
+              <div class="summary-row">
+                <span class="metric-label">Kalorien</span>
+                <span id="calories-value" class="value"></span>
               </div>
-            </div>
-            <div class="meta">
-              <span id="calories-meta-left"></span>
-              <span id="calories-meta-right"></span>
-            </div>
-          </section>
+              <div class="progress-wrap">
+                <ha-progress-bar id="calories-progress" value="0"></ha-progress-bar>
+                <div id="calories-progress-fallback" class="progress-fallback">
+                  <div id="calories-progress-fill" class="progress-fill"></div>
+                </div>
+              </div>
+              <div class="meta">
+                <span id="calories-meta-left"></span>
+                <span id="calories-meta-right"></span>
+              </div>
+            </section>
+          </div>
         </div>
-      </div>
+      </ha-card>
     `
 
-    this.appendChild(this._root)
+    this._root = this.querySelector("#protein-tracker-root")
   }
 
   _renderDialog() {
@@ -605,6 +605,10 @@ class ProteinTrackerCard extends HTMLElement {
     this._dialog.heading = this._config.name || PT_DEFAULT_TITLE
     this._syncDialogFields()
     this._setDialogStatus("", false)
+
+    // Force style properties directly on the element
+    this._dialog.style.setProperty("--mdc-dialog-min-width", "800px", "important");
+    this._dialog.style.setProperty("--mdc-dialog-max-width", "none", "important");
 
     // Force closed state first to ensure clean open
     this._dialog.open = false
