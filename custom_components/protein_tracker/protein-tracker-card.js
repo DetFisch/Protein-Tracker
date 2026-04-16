@@ -1,4 +1,4 @@
-const PT_CARD_VERSION = "2.14.7"
+const PT_CARD_VERSION = "2.14.8"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
 
@@ -10,14 +10,13 @@ style.textContent = `
     --mdc-dialog-max-width: none !important;
     width: 800px !important;
   }
-  ha-dialog[data-protein-tracker] .mdc-dialog__surface {
-    max-width: none !important;
-    width: 800px !important;
+  
+  /* Deep targetting to bypass Shadow DOM limits where possible */
+  ha-dialog[data-protein-tracker],
+  ha-dialog[data-protein-tracker] * {
+    --mdc-dialog-max-width: none !important;
   }
-  ha-dialog[data-protein-tracker] .content-wrapper {
-    max-width: none !important;
-    width: 100% !important;
-  }
+
   @media (max-width: 820px) {
     ha-dialog[data-protein-tracker] {
       --mdc-dialog-min-width: 95vw !important;
@@ -623,6 +622,21 @@ class ProteinTrackerCard extends HTMLElement {
     // Force style properties directly on the element
     this._dialog.style.setProperty("--mdc-dialog-min-width", "800px", "important");
     this._dialog.style.setProperty("--mdc-dialog-max-width", "none", "important");
+
+    // Try to reach into shadow root for content-wrapper
+    this._dialog.updateComplete?.then(() => {
+      const surface = this._dialog.shadowRoot?.querySelector(".mdc-dialog__surface");
+      if (surface) {
+        surface.style.setProperty("max-width", "none", "important");
+        surface.style.setProperty("width", "800px", "important");
+        
+        const wrapper = surface.querySelector(".content-wrapper");
+        if (wrapper) {
+          wrapper.style.setProperty("max-width", "none", "important");
+          wrapper.style.setProperty("width", "100%", "important");
+        }
+      }
+    });
 
     // Force closed state first to ensure clean open
     this._dialog.open = false
