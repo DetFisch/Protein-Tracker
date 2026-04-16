@@ -1,4 +1,4 @@
-const PT_CARD_VERSION = "2.15.3"
+const PT_CARD_VERSION = "2.15.4"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
 
@@ -590,7 +590,16 @@ class ProteinTrackerCard extends HTMLElement {
 
     this._dialog.addEventListener("closed", (ev) => {
       ev.stopPropagation()
+      if (window.history.state?.protein_tracker_dialog) {
+        window.history.back()
+      }
       this._dialog.open = false
+    })
+
+    window.addEventListener("popstate", (ev) => {
+      if (this._dialog.open && !ev.state?.protein_tracker_dialog) {
+        this._dialog.open = false
+      }
     })
   }
 
@@ -602,6 +611,11 @@ class ProteinTrackerCard extends HTMLElement {
     this._dialog.heading = this._config.name || PT_DEFAULT_TITLE
     this._syncDialogFields()
     this._setDialogStatus("", false)
+
+    // Push state to history for back button support
+    if (!window.history.state?.protein_tracker_dialog) {
+      window.history.pushState({ protein_tracker_dialog: true }, "")
+    }
 
     // Force closed state first to ensure clean open
     this._dialog.open = false
