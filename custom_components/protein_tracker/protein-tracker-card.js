@@ -1,6 +1,31 @@
-const PT_CARD_VERSION = "2.14.6"
+const PT_CARD_VERSION = "2.14.7"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
+
+// Inject global styles to override HA dialog defaults
+const style = document.createElement('style');
+style.textContent = `
+  ha-dialog[data-protein-tracker] {
+    --mdc-dialog-min-width: 800px !important;
+    --mdc-dialog-max-width: none !important;
+    width: 800px !important;
+  }
+  ha-dialog[data-protein-tracker] .mdc-dialog__surface {
+    max-width: none !important;
+    width: 800px !important;
+  }
+  ha-dialog[data-protein-tracker] .content-wrapper {
+    max-width: none !important;
+    width: 100% !important;
+  }
+  @media (max-width: 820px) {
+    ha-dialog[data-protein-tracker] {
+      --mdc-dialog-min-width: 95vw !important;
+      width: 95vw !important;
+    }
+  }
+`;
+document.head.appendChild(style);
 
 
 const PT_METRICS = {
@@ -342,18 +367,6 @@ class ProteinTrackerCard extends HTMLElement {
           overflow: hidden;
         }
 
-        ha-dialog {
-          --mdc-dialog-min-width: 800px !important;
-          --mdc-dialog-max-width: none !important;
-          --mdc-dialog-shape-radius: var(--ha-card-border-radius, 12px);
-        }
-
-        @media (max-width: 820px) {
-          ha-dialog {
-            --mdc-dialog-min-width: 95vw !important;
-          }
-        }
-
         .progress-fallback {
           width: 100%;
           height: ${PT_PROGRESS_HEIGHT}px;
@@ -512,6 +525,7 @@ class ProteinTrackerCard extends HTMLElement {
 
   _renderDialog() {
     this._dialog = document.createElement("ha-dialog")
+    this._dialog.setAttribute("data-protein-tracker", "")
     this._dialog.open = false
     this._dialog.innerHTML = `
       <div class="dialog-grid">
