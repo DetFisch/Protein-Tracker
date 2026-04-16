@@ -26,6 +26,7 @@ SERVICE_ADD_CALORIES = "add_calories"
 SERVICE_ADD_CALORIE_FOOD = "add_calorie_food"
 SERVICE_SET_CALORIE_GOAL = "set_calorie_goal"
 SERVICE_RESET_CALORIES = "reset_calories"
+SERVICE_UNDO = "undo_last"
 
 ATTR_USER_ID = "user_id"
 ATTR_DATE = "date"

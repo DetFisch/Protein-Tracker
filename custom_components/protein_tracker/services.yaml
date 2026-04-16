@@ -241,3 +241,22 @@ reset_calories:
       example: user1
       selector:
         text:
+
+undo_last:
+  name: Undo Last Entry
+  description: Remove the last added protein or calorie entry.
+  fields:
+    entity_id:
+      name: Tracker Entity
+      description: Recommended. Any sensor or number entity of the tracker.
+      required: false
+      example: sensor.jon_protein
+      selector:
+        entity:
+    user_id:
+      name: Tracker ID
+      description: Optional fallback to target tracker by id.
+      required: false
+      example: user1
+      selector:
+        text:

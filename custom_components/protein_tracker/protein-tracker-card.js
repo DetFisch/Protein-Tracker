@@ -1,6 +1,6 @@
-const PT_CARD_VERSION = "2.13.0"
+const PT_CARD_VERSION = "2.14.0"
 const PT_DEFAULT_TITLE = "Protein Tracker"
-const PT_PROGRESS_HEIGHT = 28
+const PT_PROGRESS_HEIGHT = 32
 
 const PT_METRICS = {
   protein: {
@@ -16,7 +16,8 @@ const PT_METRICS = {
     foodField: "protein_per_100g",
     goalService: "set_goal",
     goalField: "goal_grams",
-    resetService: "reset_user"
+    resetService: "reset_user",
+    undoService: "undo_last"
   },
   calories: {
     label: "Kalorien",
@@ -31,7 +32,8 @@ const PT_METRICS = {
     foodField: "calories_per_100g",
     goalService: "set_calorie_goal",
     goalField: "goal_calories",
-    resetService: "reset_calories"
+    resetService: "reset_calories",
+    undoService: "undo_last"
   }
 }
 
@@ -292,10 +294,7 @@ class ProteinTrackerCard extends HTMLElement {
         }
 
         .title {
-          font-size: var(--ha-card-header-font-size, var(--ha-font-size-2xl));
-          line-height: var(--ha-line-height-expanded);
-          font-weight: var(--ha-font-weight-normal);
-          margin-bottom: 12px;
+          display: none;
         }
 
         .summary-grid {
@@ -316,13 +315,13 @@ class ProteinTrackerCard extends HTMLElement {
         }
 
         .metric-label {
-          font-size: 0.95rem;
+          font-size: 1.1rem;
           font-weight: 600;
           color: var(--primary-text-color);
         }
 
         .value {
-          font-size: 1rem;
+          font-size: 1.1rem;
           font-weight: 500;
           color: var(--primary-text-color);
           white-space: nowrap;
@@ -358,6 +357,11 @@ class ProteinTrackerCard extends HTMLElement {
           width: 0%;
           background: var(--primary-color);
           transition: width 150ms ease;
+        }
+
+        ha-dialog {
+          --mdc-dialog-min-width: 550px;
+          --mdc-dialog-max-width: 600px;
         }
 
         .meta {
@@ -515,9 +519,9 @@ class ProteinTrackerCard extends HTMLElement {
         <section class="dialog-section">
           <h4>Über Essen berechnen</h4>
           <div class="field-row triple">
-            <ha-textfield id="input-food" type="number" step="0.1" min="0" label="Essen (g)"></ha-textfield>
             <ha-textfield id="input-p100" type="number" step="0.1" min="0" label="Protein / 100g"></ha-textfield>
             <ha-textfield id="input-c100" type="number" step="0.1" min="0" label="Kcal / 100g"></ha-textfield>
+            <ha-textfield id="input-food" type="number" step="0.1" min="0" label="Essen (g)"></ha-textfield>
             <ha-button id="btn-food" class="action-btn" appearance="accent" variant="brand">Eintragen</ha-button>
           </div>
         </section>
@@ -535,7 +539,8 @@ class ProteinTrackerCard extends HTMLElement {
       </div>
 
       <div slot="secondaryAction" class="dialog-footer">
-        <ha-button id="btn-reset" appearance="outlined" variant="neutral">Heutige Einträge löschen</ha-button>
+        <ha-button id="btn-undo" appearance="outlined" variant="neutral">Letzten Eintrag löschen</ha-button>
+        <ha-button id="btn-reset" appearance="outlined" variant="danger">Heutige Einträge zurücksetzen</ha-button>
         <ha-button id="btn-close" appearance="plain" variant="neutral">Schließen</ha-button>
       </div>
     `
@@ -558,6 +563,7 @@ class ProteinTrackerCard extends HTMLElement {
     this._dialog.querySelector("#btn-direct").addEventListener("click", () => this._handleAddDirect())
     this._dialog.querySelector("#btn-food").addEventListener("click", () => this._handleAddFood())
     this._dialog.querySelector("#btn-goal").addEventListener("click", () => this._handleSetGoals())
+    this._dialog.querySelector("#btn-undo").addEventListener("click", () => this._handleUndo())
     this._dialog.querySelector("#btn-reset").addEventListener("click", () => this._handleResetToday())
     this._dialog.querySelector("#btn-close").addEventListener("click", () => {
       this._dialog.open = false
@@ -880,6 +886,17 @@ class ProteinTrackerCard extends HTMLElement {
       ].filter(Boolean))
 
       this._setDialogStatus("", false)
+    } catch (error) {
+      this._setDialogStatus(`Fehler: ${error?.message || error}`, true)
+    }
+  }
+
+  async _handleUndo() {
+    try {
+      const metricKey = this._config.entity ? "protein" : "calories"
+      const metric = PT_METRICS[metricKey]
+      await this._callServiceRaw(metricKey, metric.undoService, {})
+      this._setDialogStatus("Letzter Eintrag gelöscht.", false)
     } catch (error) {
       this._setDialogStatus(`Fehler: ${error?.message || error}`, true)
     }

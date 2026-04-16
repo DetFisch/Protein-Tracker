@@ -78,6 +78,7 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
                 ATTR_TODAY_TOTAL: float(existing.get(ATTR_TODAY_TOTAL, 0.0)),
                 ATTR_CALORIES_TODAY_TOTAL: float(existing.get(ATTR_CALORIES_TODAY_TOTAL, 0.0)),
                 ATTR_DATE: str(existing.get(ATTR_DATE, today)),
+                "history": existing.get("history", []),
             }
 
         # Remove users that are no longer configured.
@@ -120,6 +121,12 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         self._rollover_if_needed(self._today_key())
         user = self._get_user(user_id)
         user[ATTR_TODAY_TOTAL] = float(user[ATTR_TODAY_TOTAL]) + float(grams)
+        
+        # Record history
+        history = user.setdefault("history", [])
+        history.append({"protein": float(grams), "calories": 0.0})
+        # Keep only last 20 entries
+        user["history"] = history[-20:]
 
         await self._save()
         self.async_set_updated_data(self._public_data())
@@ -137,6 +144,11 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
             raise HomeAssistantError("protein_per_100g must be > 0")
 
         grams = (food_grams * protein_per_100g) / 100.0
+        
+        # We need to record this as a combined entry if we want to undo it correctly,
+        # but the card might call add_food and then add_calorie_food separately if they are separate metrics.
+        # Actually, in ProteinTrackerCard._handleAddFood, it calls them separately.
+        # So we should just handle them as separate history entries.
         await self.async_add_protein(user_id, grams)
         return grams
 
@@ -160,6 +172,12 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         self._rollover_if_needed(self._today_key())
         user = self._get_user(user_id)
         user[ATTR_CALORIES_TODAY_TOTAL] = float(user[ATTR_CALORIES_TODAY_TOTAL]) + float(calories)
+
+        # Record history
+        history = user.setdefault("history", [])
+        history.append({"protein": 0.0, "calories": float(calories)})
+        # Keep only last 20 entries
+        user["history"] = history[-20:]
 
         await self._save()
         self.async_set_updated_data(self._public_data())
@@ -192,11 +210,28 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         await self._save()
         self.async_set_updated_data(self._public_data())
 
+    async def async_undo(self, user_id: str) -> None:
+        """Undo the last added entry."""
+        self._rollover_if_needed(self._today_key())
+        user = self._get_user(user_id)
+        history = user.get("history", [])
+        
+        if not history:
+            raise HomeAssistantError("No history to undo")
+            
+        last_entry = history.pop()
+        user[ATTR_TODAY_TOTAL] = max(0.0, float(user[ATTR_TODAY_TOTAL]) - float(last_entry.get("protein", 0.0)))
+        user[ATTR_CALORIES_TODAY_TOTAL] = max(0.0, float(user[ATTR_CALORIES_TODAY_TOTAL]) - float(last_entry.get("calories", 0.0)))
+        
+        await self._save()
+        self.async_set_updated_data(self._public_data())
+
     async def async_reset_user(self, user_id: str) -> None:
         """Reset current-day protein for one user to 0."""
         self._rollover_if_needed(self._today_key())
         user = self._get_user(user_id)
         user[ATTR_TODAY_TOTAL] = 0.0
+        user["history"] = []
 
         await self._save()
         self.async_set_updated_data(self._public_data())
@@ -206,6 +241,7 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         self._rollover_if_needed(self._today_key())
         user = self._get_user(user_id)
         user[ATTR_CALORIES_TODAY_TOTAL] = 0.0
+        user["history"] = []
 
         await self._save()
         self.async_set_updated_data(self._public_data())

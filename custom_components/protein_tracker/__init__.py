@@ -48,6 +48,7 @@ from .const import (
     SERVICE_RESET_USER,
     SERVICE_SET_CALORIE_GOAL,
     SERVICE_SET_GOAL,
+    SERVICE_UNDO,
     STORAGE_KEY,
 )
 from .manager import ProteinTrackerManager
@@ -142,6 +143,13 @@ SERVICE_SCHEMA_RESET_USER = vol.Schema(
 )
 
 SERVICE_SCHEMA_RESET_CALORIES = vol.Schema(
+    {
+        vol.Optional(FIELD_USER_ID): cv.slug,
+        vol.Optional(FIELD_ENTITY_ID): cv.entity_id,
+    }
+)
+
+SERVICE_SCHEMA_UNDO = vol.Schema(
     {
         vol.Optional(FIELD_USER_ID): cv.slug,
         vol.Optional(FIELD_ENTITY_ID): cv.entity_id,
@@ -407,6 +415,12 @@ async def _register_services(hass: HomeAssistant) -> None:
         manager = _get_manager_for_user_id(hass, user_id)
         await manager.async_reset_calories(user_id)
 
+    async def handle_undo(call: ServiceCall) -> None:
+        _ensure_target(call.data)
+        user_id = _resolve_user_id(hass, call.data)
+        manager = _get_manager_for_user_id(hass, user_id)
+        await manager.async_undo(user_id)
+
     hass.services.async_register(
         DOMAIN,
         SERVICE_ADD_PROTEIN,
@@ -454,4 +468,10 @@ async def _register_services(hass: HomeAssistant) -> None:
         SERVICE_RESET_CALORIES,
         handle_reset_calories,
         schema=SERVICE_SCHEMA_RESET_CALORIES,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_UNDO,
+        handle_undo,
+        schema=SERVICE_SCHEMA_UNDO,
     )
