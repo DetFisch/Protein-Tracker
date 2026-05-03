@@ -34,6 +34,7 @@ from .const import (
     FIELD_CALORIES,
     FIELD_CALORIES_PER_100G,
     FIELD_ENTITY_ID,
+    FIELD_ENTRY_ID,
     FIELD_FOOD_GRAMS,
     FIELD_GOAL_CALORIES,
     FIELD_GOAL_GRAMS,
@@ -45,6 +46,7 @@ from .const import (
     SERVICE_ADD_ENTRY,
     SERVICE_ADD_FOOD,
     SERVICE_ADD_PROTEIN,
+    SERVICE_DELETE_ENTRY,
     SERVICE_RESET_CALORIES,
     SERVICE_RESET_USER,
     SERVICE_SET_CALORIE_GOAL,
@@ -163,6 +165,14 @@ SERVICE_SCHEMA_UNDO = vol.Schema(
     {
         vol.Optional(FIELD_USER_ID): cv.slug,
         vol.Optional(FIELD_ENTITY_ID): cv.entity_id,
+    }
+)
+
+SERVICE_SCHEMA_DELETE_ENTRY = vol.Schema(
+    {
+        vol.Optional(FIELD_USER_ID): cv.slug,
+        vol.Optional(FIELD_ENTITY_ID): cv.entity_id,
+        vol.Required(FIELD_ENTRY_ID): cv.string,
     }
 )
 
@@ -342,12 +352,15 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         for service in (
             SERVICE_ADD_PROTEIN,
             SERVICE_ADD_FOOD,
+            SERVICE_ADD_ENTRY,
             SERVICE_ADD_CALORIES,
             SERVICE_ADD_CALORIE_FOOD,
             SERVICE_SET_GOAL,
             SERVICE_SET_CALORIE_GOAL,
             SERVICE_RESET_USER,
             SERVICE_RESET_CALORIES,
+            SERVICE_UNDO,
+            SERVICE_DELETE_ENTRY,
         ):
             if hass.services.has_service(DOMAIN, service):
                 hass.services.async_remove(DOMAIN, service)
@@ -441,6 +454,12 @@ async def _register_services(hass: HomeAssistant) -> None:
         manager = _get_manager_for_user_id(hass, user_id)
         await manager.async_undo(user_id)
 
+    async def handle_delete_entry(call: ServiceCall) -> None:
+        _ensure_target(call.data)
+        user_id = _resolve_user_id(hass, call.data)
+        manager = _get_manager_for_user_id(hass, user_id)
+        await manager.async_delete_entry(user_id, str(call.data[FIELD_ENTRY_ID]))
+
     hass.services.async_register(
         DOMAIN,
         SERVICE_ADD_PROTEIN,
@@ -500,4 +519,10 @@ async def _register_services(hass: HomeAssistant) -> None:
         SERVICE_UNDO,
         handle_undo,
         schema=SERVICE_SCHEMA_UNDO,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_DELETE_ENTRY,
+        handle_delete_entry,
+        schema=SERVICE_SCHEMA_DELETE_ENTRY,
     )

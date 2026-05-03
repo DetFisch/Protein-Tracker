@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+from uuid import uuid4
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
@@ -16,8 +17,11 @@ from .const import (
     ATTR_CALORIES_PROGRESS_PERCENT,
     ATTR_CALORIES_REMAINING,
     ATTR_CALORIES_TODAY_TOTAL,
+    ATTR_CREATED_AT,
     ATTR_DATE,
+    ATTR_ENTRY_ID,
     ATTR_GOAL,
+    ATTR_HISTORY,
     ATTR_PROGRESS_PERCENT,
     ATTR_REMAINING,
     ATTR_TODAY_TOTAL,
@@ -60,6 +64,7 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         today = self._today_key()
 
         configured_ids: set[str] = set()
+        changed = False
         for user_conf in self._users_config:
             user_id = user_conf[CONF_ID]
             configured_ids.add(user_id)
@@ -78,15 +83,16 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
                 ATTR_TODAY_TOTAL: float(existing.get(ATTR_TODAY_TOTAL, 0.0)),
                 ATTR_CALORIES_TODAY_TOTAL: float(existing.get(ATTR_CALORIES_TODAY_TOTAL, 0.0)),
                 ATTR_DATE: str(existing.get(ATTR_DATE, today)),
-                "history": existing.get("history", []),
+                ATTR_HISTORY: existing.get(ATTR_HISTORY, []),
             }
+            changed = self._normalize_history(users[user_id]) or changed
 
         # Remove users that are no longer configured.
         for existing_user_id in list(users):
             if existing_user_id not in configured_ids:
                 users.pop(existing_user_id, None)
 
-        changed = self._rollover_if_needed(today)
+        changed = self._rollover_if_needed(today) or changed
 
         if changed:
             await self._save()
@@ -128,11 +134,15 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         )
 
         # Record as ONE history entry
-        history = user.setdefault("history", [])
-        history.append({"protein": float(protein), "calories": float(calories)})
-        # Keep only last 20 entries
-        user["history"] = history[-20:]
-
+        history = user.setdefault(ATTR_HISTORY, [])
+        history.append(
+            {
+                ATTR_ENTRY_ID: uuid4().hex,
+                "protein": float(protein),
+                "calories": float(calories),
+                ATTR_CREATED_AT: dt_util.now().isoformat(),
+            }
+        )
         await self._save()
         self.async_set_updated_data(self._public_data())
 
@@ -204,7 +214,7 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         """Undo the last added entry."""
         self._rollover_if_needed(self._today_key())
         user = self._get_user(user_id)
-        history = user.get("history", [])
+        history = user.get(ATTR_HISTORY, [])
         
         if not history:
             raise HomeAssistantError("No history to undo")
@@ -216,12 +226,39 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         await self._save()
         self.async_set_updated_data(self._public_data())
 
+    async def async_delete_entry(self, user_id: str, entry_id: str) -> None:
+        """Delete a specific history entry and subtract its values."""
+        self._rollover_if_needed(self._today_key())
+        user = self._get_user(user_id)
+        history = user.get(ATTR_HISTORY, [])
+
+        for index, entry in enumerate(history):
+            if str(entry.get(ATTR_ENTRY_ID, "")) != str(entry_id):
+                continue
+
+            removed = history.pop(index)
+            user[ATTR_TODAY_TOTAL] = max(
+                0.0,
+                float(user[ATTR_TODAY_TOTAL]) - float(removed.get("protein", 0.0)),
+            )
+            user[ATTR_CALORIES_TODAY_TOTAL] = max(
+                0.0,
+                float(user[ATTR_CALORIES_TODAY_TOTAL])
+                - float(removed.get("calories", 0.0)),
+            )
+
+            await self._save()
+            self.async_set_updated_data(self._public_data())
+            return
+
+        raise HomeAssistantError("Entry not found")
+
     async def async_reset_user(self, user_id: str) -> None:
         """Reset current-day protein for one user to 0."""
         self._rollover_if_needed(self._today_key())
         user = self._get_user(user_id)
         user[ATTR_TODAY_TOTAL] = 0.0
-        user["history"] = []
+        user[ATTR_HISTORY] = []
 
         await self._save()
         self.async_set_updated_data(self._public_data())
@@ -231,7 +268,7 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         self._rollover_if_needed(self._today_key())
         user = self._get_user(user_id)
         user[ATTR_CALORIES_TODAY_TOTAL] = 0.0
-        user["history"] = []
+        user[ATTR_HISTORY] = []
 
         await self._save()
         self.async_set_updated_data(self._public_data())
@@ -245,8 +282,38 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
             user[ATTR_DATE] = today
             user[ATTR_TODAY_TOTAL] = 0.0
             user[ATTR_CALORIES_TODAY_TOTAL] = 0.0
+            user[ATTR_HISTORY] = []
             changed = True
 
+        return changed
+
+    def _normalize_history(self, user: dict[str, Any]) -> bool:
+        """Ensure stored history entries have IDs for targeted deletion."""
+        history = user.get(ATTR_HISTORY, [])
+        if not isinstance(history, list):
+            user[ATTR_HISTORY] = []
+            return True
+
+        changed = False
+        normalized = []
+        for entry in history:
+            if not isinstance(entry, dict):
+                changed = True
+                continue
+
+            normalized_entry = {
+                ATTR_ENTRY_ID: str(entry.get(ATTR_ENTRY_ID) or uuid4().hex),
+                "protein": float(entry.get("protein", 0.0)),
+                "calories": float(entry.get("calories", 0.0)),
+                ATTR_CREATED_AT: str(entry.get(ATTR_CREATED_AT, "")),
+            }
+            changed = changed or normalized_entry != entry
+            normalized.append(normalized_entry)
+
+        if len(normalized) != len(history):
+            changed = True
+
+        user[ATTR_HISTORY] = normalized
         return changed
 
     async def _save(self) -> None:
@@ -280,6 +347,16 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
                 CONF_CALORIE_GOAL: round(calorie_goal, 2),
                 ATTR_CALORIES_REMAINING: round(calories_remaining, 2),
                 ATTR_CALORIES_PROGRESS_PERCENT: round(calories_progress_percent, 2),
+                ATTR_HISTORY: [
+                    {
+                        ATTR_ENTRY_ID: str(entry.get(ATTR_ENTRY_ID, "")),
+                        "protein": round(float(entry.get("protein", 0.0)), 2),
+                        "calories": round(float(entry.get("calories", 0.0)), 2),
+                        ATTR_CREATED_AT: str(entry.get(ATTR_CREATED_AT, "")),
+                    }
+                    for entry in user.get(ATTR_HISTORY, [])
+                    if isinstance(entry, dict)
+                ],
             }
 
         return {CONF_USERS: users}

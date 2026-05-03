@@ -260,3 +260,29 @@ undo_last:
       example: user1
       selector:
         text:
+
+delete_entry:
+  name: Delete Entry
+  description: Remove one specific history entry by entry id.
+  fields:
+    entity_id:
+      name: Tracker Entity
+      description: Recommended. Any sensor or number entity of the tracker.
+      required: false
+      example: sensor.jon_protein
+      selector:
+        entity:
+    user_id:
+      name: Tracker ID
+      description: Optional fallback to target tracker by id.
+      required: false
+      example: user1
+      selector:
+        text:
+    entry_id:
+      name: Entry ID
+      description: ID of the history entry to delete.
+      required: true
+      example: 3f4e2c1a6b7844b4a0fd4d8f87d8b1c2
+      selector:
+        text:

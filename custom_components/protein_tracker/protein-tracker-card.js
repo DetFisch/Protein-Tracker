@@ -1,6 +1,7 @@
-const PT_CARD_VERSION = "2.15.4"
+const PT_CARD_VERSION = "2.16.0"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
+const PT_ENTRY_PREVIEW_LIMIT = 3
 
 const PT_METRICS = {
   protein: {
@@ -334,6 +335,9 @@ class ProteinTrackerCard extends HTMLElement {
           .field-row.double, .field-row.multi, .field-row.single {
             grid-template-columns: 1fr !important;
           }
+          .entry-row {
+            grid-template-columns: 1fr;
+          }
           .action-btn {
             justify-self: stretch;
             margin-top: 4px;
@@ -430,6 +434,51 @@ class ProteinTrackerCard extends HTMLElement {
           align-items: center;
           flex-wrap: wrap;
           padding-top: 4px;
+        }
+
+        .entries-panel {
+          display: grid;
+          gap: 8px;
+        }
+
+        .entries-panel[hidden] {
+          display: none;
+        }
+
+        .entries-summary {
+          font-size: 0.85rem;
+          color: var(--secondary-text-color);
+        }
+
+        .entries-list {
+          display: grid;
+          gap: 8px;
+        }
+
+        .entry-row {
+          display: grid;
+          grid-template-columns: 1fr auto;
+          gap: 10px;
+          align-items: center;
+          border: 1px solid var(--divider-color);
+          border-radius: var(--ha-card-border-radius, 12px);
+          padding: 8px 10px;
+        }
+
+        .entry-main {
+          display: grid;
+          gap: 2px;
+          min-width: 0;
+        }
+
+        .entry-values {
+          color: var(--primary-text-color);
+          font-size: 0.95rem;
+        }
+
+        .entry-time {
+          color: var(--secondary-text-color);
+          font-size: 0.8rem;
         }
 
         .status {
@@ -545,8 +594,12 @@ class ProteinTrackerCard extends HTMLElement {
         <section class="dialog-section">
           <h4>Verwaltung</h4>
           <div class="dialog-footer">
-            <ha-button id="btn-undo" appearance="outlined" variant="neutral">Letzten Eintrag löschen</ha-button>
+            <ha-button id="btn-edit-entries" appearance="outlined" variant="neutral">Einträge bearbeiten</ha-button>
             <ha-button id="btn-reset" appearance="outlined" variant="danger">Einträge zurücksetzen</ha-button>
+          </div>
+          <div id="entries-panel" class="entries-panel" hidden>
+            <div id="entries-summary" class="entries-summary"></div>
+            <div id="entries-list" class="entries-list"></div>
           </div>
         </section>
 
@@ -580,8 +633,17 @@ class ProteinTrackerCard extends HTMLElement {
     this._dialog.querySelector("#btn-direct").addEventListener("click", () => this._handleAddDirect())
     this._dialog.querySelector("#btn-food").addEventListener("click", () => this._handleAddFood())
     this._dialog.querySelector("#btn-goal").addEventListener("click", () => this._handleSetGoals())
-    this._dialog.querySelector("#btn-undo").addEventListener("click", () => this._handleUndo())
+    this._dialog.querySelector("#btn-edit-entries").addEventListener("click", () => this._toggleEntries())
     this._dialog.querySelector("#btn-reset").addEventListener("click", () => this._handleResetToday())
+    this._dialog.querySelector("#entries-list").addEventListener("click", (ev) => {
+      const button = ev.target?.closest?.("[data-entry-id]")
+      if (!button) {
+        return
+      }
+
+      ev.stopPropagation()
+      this._handleDeleteEntry(button.dataset.entryId)
+    })
     
     this._dialog.querySelector("#btn-close").addEventListener("click", (ev) => {
       ev.stopPropagation()
@@ -610,6 +672,7 @@ class ProteinTrackerCard extends HTMLElement {
 
     this._dialog.heading = this._config.name || PT_DEFAULT_TITLE
     this._syncDialogFields()
+    this._renderEntries()
     this._setDialogStatus("", false)
 
     // Push state to history for back button support
@@ -681,6 +744,105 @@ class ProteinTrackerCard extends HTMLElement {
     }
 
     host.innerHTML = `<div class="sensor-fallback">${entities.join(" | ")}</div>`
+  }
+
+  _historyEntries() {
+    const states = [
+      this._config.entity ? this._hass?.states?.[this._config.entity] : null,
+      this._config.calorie_entity ? this._hass?.states?.[this._config.calorie_entity] : null
+    ]
+
+    for (const state of states) {
+      const history = state?.attributes?.history
+      if (Array.isArray(history)) {
+        return history.filter((entry) => entry && entry.entry_id)
+      }
+    }
+
+    return []
+  }
+
+  _escapeHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;")
+  }
+
+  _formatEntryTime(value, fallbackIndex) {
+    if (!value) {
+      return `Eintrag ${fallbackIndex + 1}`
+    }
+
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) {
+      return `Eintrag ${fallbackIndex + 1}`
+    }
+
+    return parsed.toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit"
+    })
+  }
+
+  _renderEntries() {
+    if (!this._dialog) {
+      return
+    }
+
+    const panel = this._dialog.querySelector("#entries-panel")
+    const summary = this._dialog.querySelector("#entries-summary")
+    const list = this._dialog.querySelector("#entries-list")
+    const editButton = this._dialog.querySelector("#btn-edit-entries")
+    const entries = this._historyEntries()
+
+    panel.hidden = !this._entriesOpen
+    editButton.textContent = this._entriesOpen ? "Einträge ausblenden" : "Einträge bearbeiten"
+
+    if (entries.length === 0) {
+      summary.textContent = "Heute sind noch keine einzelnen Einträge vorhanden."
+      list.innerHTML = ""
+      return
+    }
+
+    const newestFirst = [...entries].reverse()
+    const previewText = newestFirst.slice(0, PT_ENTRY_PREVIEW_LIMIT).map((entry) => {
+      const protein = Number.parseFloat(entry.protein) || 0
+      const calories = Number.parseFloat(entry.calories) || 0
+      return `${protein.toFixed(1)} g / ${calories.toFixed(0)} kcal`
+    }).join(" | ")
+
+    summary.textContent = `${entries.length} Einträge heute${previewText ? `: ${previewText}` : ""}`
+    list.innerHTML = newestFirst.map((entry, index) => {
+      const protein = Number.parseFloat(entry.protein) || 0
+      const calories = Number.parseFloat(entry.calories) || 0
+      const labelParts = []
+
+      if (protein > 0) {
+        labelParts.push(`${protein.toFixed(1)} g Protein`)
+      }
+
+      if (calories > 0) {
+        labelParts.push(`${calories.toFixed(0)} kcal`)
+      }
+
+      return `
+        <div class="entry-row">
+          <div class="entry-main">
+            <div class="entry-values">${this._escapeHtml(labelParts.join(" + ") || "0")}</div>
+            <div class="entry-time">${this._escapeHtml(this._formatEntryTime(entry.created_at, entries.length - index - 1))}</div>
+          </div>
+          <ha-button appearance="outlined" variant="danger" data-entry-id="${this._escapeHtml(entry.entry_id)}">Löschen</ha-button>
+        </div>
+      `
+    }).join("")
+  }
+
+  _toggleEntries() {
+    this._entriesOpen = !this._entriesOpen
+    this._renderEntries()
   }
 
   _metricState(metricKey) {
@@ -755,6 +917,7 @@ class ProteinTrackerCard extends HTMLElement {
     this._renderMetric("protein", this._metricState("protein"))
     this._renderMetric("calories", this._metricState("calories"))
     this._syncDialogFields()
+    this._renderEntries()
   }
 
   _syncDialogFields() {
@@ -921,6 +1084,19 @@ class ProteinTrackerCard extends HTMLElement {
       const metric = PT_METRICS[metricKey]
       await this._callServiceRaw(metricKey, metric.undoService, {})
       this._setDialogStatus("Letzter Eintrag gelöscht.", false)
+    } catch (error) {
+      this._setDialogStatus(`Fehler: ${error?.message || error}`, true)
+    }
+  }
+
+  async _handleDeleteEntry(entryId) {
+    if (!entryId) {
+      return
+    }
+
+    try {
+      await this._callServiceRaw("protein", "delete_entry", { entry_id: entryId })
+      this._setDialogStatus("Eintrag gelöscht.", false)
     } catch (error) {
       this._setDialogStatus(`Fehler: ${error?.message || error}`, true)
     }
