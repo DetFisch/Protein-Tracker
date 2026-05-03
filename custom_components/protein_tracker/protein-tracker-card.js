@@ -1,4 +1,4 @@
-const PT_CARD_VERSION = "2.16.1"
+const PT_CARD_VERSION = "2.16.2"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
 const PT_ENTRY_PREVIEW_LIMIT = 3
@@ -521,23 +521,6 @@ class ProteinTrackerCard extends HTMLElement {
           <div class="summary-grid">
             <section class="metric-block">
               <div class="summary-row">
-                <span class="metric-label">Protein</span>
-                <span id="protein-value" class="value"></span>
-              </div>
-              <div class="progress-wrap">
-                <ha-progress-bar id="protein-progress" value="0"></ha-progress-bar>
-                <div id="protein-progress-fallback" class="progress-fallback">
-                  <div id="protein-progress-fill" class="progress-fill"></div>
-                </div>
-              </div>
-              <div class="meta">
-                <span id="protein-meta-left"></span>
-                <span id="protein-meta-right"></span>
-              </div>
-            </section>
-
-            <section class="metric-block">
-              <div class="summary-row">
                 <span class="metric-label">Kalorien</span>
                 <span id="calories-value" class="value"></span>
               </div>
@@ -550,6 +533,23 @@ class ProteinTrackerCard extends HTMLElement {
               <div class="meta">
                 <span id="calories-meta-left"></span>
                 <span id="calories-meta-right"></span>
+              </div>
+            </section>
+
+            <section class="metric-block">
+              <div class="summary-row">
+                <span class="metric-label">Protein</span>
+                <span id="protein-value" class="value"></span>
+              </div>
+              <div class="progress-wrap">
+                <ha-progress-bar id="protein-progress" value="0"></ha-progress-bar>
+                <div id="protein-progress-fallback" class="progress-fallback">
+                  <div id="protein-progress-fill" class="progress-fill"></div>
+                </div>
+              </div>
+              <div class="meta">
+                <span id="protein-meta-left"></span>
+                <span id="protein-meta-right"></span>
               </div>
             </section>
           </div>
@@ -573,8 +573,8 @@ class ProteinTrackerCard extends HTMLElement {
             <ha-textfield id="input-direct-name" type="text" label="Name (optional)"></ha-textfield>
           </div>
           <div class="field-row double">
-            <ha-textfield id="input-direct-protein" type="number" step="0.1" min="0" label="Protein (g)"></ha-textfield>
             <ha-textfield id="input-direct-calories" type="number" step="0.1" min="0" label="Kalorien (kcal)"></ha-textfield>
+            <ha-textfield id="input-direct-protein" type="number" step="0.1" min="0" label="Protein (g)"></ha-textfield>
             <ha-button id="btn-direct" class="action-btn" appearance="accent" variant="brand">Eintragen</ha-button>
           </div>
         </section>
@@ -585,8 +585,8 @@ class ProteinTrackerCard extends HTMLElement {
             <ha-textfield id="input-food-name" type="text" label="Name (optional)"></ha-textfield>
           </div>
           <div class="field-row multi">
-            <ha-textfield id="input-p100" type="number" step="0.1" min="0" label="Protein / 100g"></ha-textfield>
             <ha-textfield id="input-c100" type="number" step="0.1" min="0" label="Kcal / 100g"></ha-textfield>
+            <ha-textfield id="input-p100" type="number" step="0.1" min="0" label="Protein / 100g"></ha-textfield>
           </div>
           <div class="field-row single">
             <ha-textfield id="input-food" type="number" step="0.1" min="0" label="Essen (g)"></ha-textfield>
@@ -597,8 +597,8 @@ class ProteinTrackerCard extends HTMLElement {
         <section class="dialog-section">
           <h4>Tagesziele</h4>
           <div class="field-row double">
-            <ha-textfield id="input-goal-protein" type="number" step="1" min="0" label="Protein-Ziel (g)"></ha-textfield>
             <ha-textfield id="input-goal-calories" type="number" step="1" min="0" label="Kalorien-Ziel (kcal)"></ha-textfield>
+            <ha-textfield id="input-goal-protein" type="number" step="1" min="0" label="Protein-Ziel (g)"></ha-textfield>
             <ha-button id="btn-goal" class="action-btn" appearance="accent" variant="brand">Speichern</ha-button>
           </div>
         </section>
@@ -825,7 +825,7 @@ class ProteinTrackerCard extends HTMLElement {
       const protein = Number.parseFloat(entry.protein) || 0
       const calories = Number.parseFloat(entry.calories) || 0
       const entryName = String(entry.entry_name || "").trim()
-      const values = `${protein.toFixed(1)} g / ${calories.toFixed(0)} kcal`
+      const values = `${calories.toFixed(0)} kcal / ${protein.toFixed(1)} g`
       return entryName ? `${entryName}: ${values}` : values
     }).join(" | ")
 
@@ -836,12 +836,12 @@ class ProteinTrackerCard extends HTMLElement {
       const entryName = String(entry.entry_name || "").trim()
       const labelParts = []
 
-      if (protein > 0) {
-        labelParts.push(`${protein.toFixed(1)} g Protein`)
-      }
-
       if (calories > 0) {
         labelParts.push(`${calories.toFixed(0)} kcal`)
+      }
+
+      if (protein > 0) {
+        labelParts.push(`${protein.toFixed(1)} g Protein`)
       }
 
       return `
