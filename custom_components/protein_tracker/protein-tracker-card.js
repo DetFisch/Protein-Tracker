@@ -1,4 +1,4 @@
-const PT_CARD_VERSION = "2.16.0"
+const PT_CARD_VERSION = "2.16.1"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
 const PT_ENTRY_PREVIEW_LIMIT = 3
@@ -476,6 +476,12 @@ class ProteinTrackerCard extends HTMLElement {
           font-size: 0.95rem;
         }
 
+        .entry-name {
+          color: var(--primary-text-color);
+          font-size: 0.95rem;
+          font-weight: 600;
+        }
+
         .entry-time {
           color: var(--secondary-text-color);
           font-size: 0.8rem;
@@ -563,6 +569,9 @@ class ProteinTrackerCard extends HTMLElement {
 
         <section class="dialog-section">
           <h4>Direkt eintragen</h4>
+          <div class="field-row single">
+            <ha-textfield id="input-direct-name" type="text" label="Name (optional)"></ha-textfield>
+          </div>
           <div class="field-row double">
             <ha-textfield id="input-direct-protein" type="number" step="0.1" min="0" label="Protein (g)"></ha-textfield>
             <ha-textfield id="input-direct-calories" type="number" step="0.1" min="0" label="Kalorien (kcal)"></ha-textfield>
@@ -572,6 +581,9 @@ class ProteinTrackerCard extends HTMLElement {
 
         <section class="dialog-section">
           <h4>Über Essen berechnen</h4>
+          <div class="field-row single">
+            <ha-textfield id="input-food-name" type="text" label="Name (optional)"></ha-textfield>
+          </div>
           <div class="field-row multi">
             <ha-textfield id="input-p100" type="number" step="0.1" min="0" label="Protein / 100g"></ha-textfield>
             <ha-textfield id="input-c100" type="number" step="0.1" min="0" label="Kcal / 100g"></ha-textfield>
@@ -755,7 +767,7 @@ class ProteinTrackerCard extends HTMLElement {
     for (const state of states) {
       const history = state?.attributes?.history
       if (Array.isArray(history)) {
-        return history.filter((entry) => entry && entry.entry_id)
+        return history.filter((entry) => entry && entry.entry_id && entry.created_at)
       }
     }
 
@@ -773,18 +785,19 @@ class ProteinTrackerCard extends HTMLElement {
 
   _formatEntryTime(value, fallbackIndex) {
     if (!value) {
-      return `Eintrag ${fallbackIndex + 1}`
+      return `Uhrzeit unbekannt`
     }
 
     const parsed = new Date(value)
     if (Number.isNaN(parsed.getTime())) {
-      return `Eintrag ${fallbackIndex + 1}`
+      return `Uhrzeit unbekannt`
     }
 
-    return parsed.toLocaleTimeString(undefined, {
+    const time = parsed.toLocaleTimeString(undefined, {
       hour: "2-digit",
       minute: "2-digit"
     })
+    return `${time} Uhr`
   }
 
   _renderEntries() {
@@ -811,13 +824,16 @@ class ProteinTrackerCard extends HTMLElement {
     const previewText = newestFirst.slice(0, PT_ENTRY_PREVIEW_LIMIT).map((entry) => {
       const protein = Number.parseFloat(entry.protein) || 0
       const calories = Number.parseFloat(entry.calories) || 0
-      return `${protein.toFixed(1)} g / ${calories.toFixed(0)} kcal`
+      const entryName = String(entry.entry_name || "").trim()
+      const values = `${protein.toFixed(1)} g / ${calories.toFixed(0)} kcal`
+      return entryName ? `${entryName}: ${values}` : values
     }).join(" | ")
 
     summary.textContent = `${entries.length} Einträge heute${previewText ? `: ${previewText}` : ""}`
     list.innerHTML = newestFirst.map((entry, index) => {
       const protein = Number.parseFloat(entry.protein) || 0
       const calories = Number.parseFloat(entry.calories) || 0
+      const entryName = String(entry.entry_name || "").trim()
       const labelParts = []
 
       if (protein > 0) {
@@ -831,6 +847,7 @@ class ProteinTrackerCard extends HTMLElement {
       return `
         <div class="entry-row">
           <div class="entry-main">
+            ${entryName ? `<div class="entry-name">${this._escapeHtml(entryName)}</div>` : ""}
             <div class="entry-values">${this._escapeHtml(labelParts.join(" + ") || "0")}</div>
             <div class="entry-time">${this._escapeHtml(this._formatEntryTime(entry.created_at, entries.length - index - 1))}</div>
           </div>
@@ -952,6 +969,10 @@ class ProteinTrackerCard extends HTMLElement {
     return { provided: true, valid, value }
   }
 
+  _readOptionalText(input) {
+    return String(input?.value || "").trim().replace(/\s+/g, " ").slice(0, 80)
+  }
+
   async _callServiceRaw(metricKey, service, payload) {
     const data = { ...payload }
     const entity = metricKey === "protein" ? this._config.entity : this._config.calorie_entity
@@ -985,6 +1006,7 @@ class ProteinTrackerCard extends HTMLElement {
   async _handleAddDirect() {
     const protein = this._readOptionalNumber(this._dialog.querySelector("#input-direct-protein"))
     const calories = this._readOptionalNumber(this._dialog.querySelector("#input-direct-calories"))
+    const entryName = this._readOptionalText(this._dialog.querySelector("#input-direct-name"))
 
     if (!protein.provided && !calories.provided) {
       this._setDialogStatus("Bitte Protein oder Kalorien eintragen.", true)
@@ -997,13 +1019,19 @@ class ProteinTrackerCard extends HTMLElement {
     }
 
     try {
-      await this._callServiceRaw("protein", PT_METRICS.protein.combinedService, {
+      const payload = {
         [PT_METRICS.protein.directField]: protein.value || 0,
         [PT_METRICS.calories.directField]: calories.value || 0
-      })
+      }
+      if (entryName) {
+        payload.entry_name = entryName
+      }
+
+      await this._callServiceRaw("protein", PT_METRICS.protein.combinedService, payload)
 
       this._dialog.querySelector("#input-direct-protein").value = ""
       this._dialog.querySelector("#input-direct-calories").value = ""
+      this._dialog.querySelector("#input-direct-name").value = ""
       this._setDialogStatus("", false)
     } catch (error) {
       this._setDialogStatus(`Fehler: ${error?.message || error}`, true)
@@ -1014,6 +1042,7 @@ class ProteinTrackerCard extends HTMLElement {
     const food = this._readOptionalNumber(this._dialog.querySelector("#input-food"))
     const proteinPer100 = this._readOptionalNumber(this._dialog.querySelector("#input-p100"))
     const caloriesPer100 = this._readOptionalNumber(this._dialog.querySelector("#input-c100"))
+    const entryName = this._readOptionalText(this._dialog.querySelector("#input-food-name"))
 
     if (!food.provided || !food.valid) {
       this._setDialogStatus("Bitte eine gültige Essensmenge > 0 eingeben.", true)
@@ -1034,14 +1063,20 @@ class ProteinTrackerCard extends HTMLElement {
       const pGrams = proteinPer100.provided ? (food.value * proteinPer100.value) / 100.0 : 0
       const cGrams = caloriesPer100.provided ? (food.value * caloriesPer100.value) / 100.0 : 0
 
-      await this._callServiceRaw("protein", PT_METRICS.protein.combinedService, {
+      const payload = {
         [PT_METRICS.protein.directField]: pGrams,
         [PT_METRICS.calories.directField]: cGrams
-      })
+      }
+      if (entryName) {
+        payload.entry_name = entryName
+      }
+
+      await this._callServiceRaw("protein", PT_METRICS.protein.combinedService, payload)
 
       this._dialog.querySelector("#input-food").value = ""
       this._dialog.querySelector("#input-p100").value = ""
       this._dialog.querySelector("#input-c100").value = ""
+      this._dialog.querySelector("#input-food-name").value = ""
       this._setDialogStatus("", false)
     } catch (error) {
       this._setDialogStatus(`Fehler: ${error?.message || error}`, true)

@@ -17,6 +17,13 @@ add_protein:
       example: user1
       selector:
         text:
+    entry_name:
+      name: Entry name
+      description: Optional display name for this entry.
+      required: false
+      example: Breakfast
+      selector:
+        text:
     grams:
       name: Protein grams
       description: Protein amount in grams.
@@ -48,6 +55,13 @@ add_food:
       example: user2
       selector:
         text:
+    entry_name:
+      name: Entry name
+      description: Optional display name for this entry.
+      required: false
+      example: Chicken lunch
+      selector:
+        text:
     food_grams:
       name: Food grams
       description: How many grams of this food were eaten.
@@ -68,6 +82,54 @@ add_food:
         number:
           min: 0.1
           max: 100
+          step: 0.1
+          mode: box
+
+add_entry:
+  name: Add Entry
+  description: Add consumed protein and calories in one entry.
+  fields:
+    entity_id:
+      name: Tracker Entity
+      description: Recommended. Example sensor.jon_protein.
+      required: false
+      example: sensor.jon_protein
+      selector:
+        entity:
+    user_id:
+      name: Tracker ID
+      description: Optional fallback to target tracker by id.
+      required: false
+      example: user1
+      selector:
+        text:
+    entry_name:
+      name: Entry name
+      description: Optional display name for this entry.
+      required: false
+      example: Breakfast
+      selector:
+        text:
+    grams:
+      name: Protein grams
+      description: Protein amount in grams.
+      required: false
+      example: 35
+      selector:
+        number:
+          min: 0
+          max: 1000
+          step: 0.1
+          mode: box
+    calories:
+      name: Calories
+      description: Calories in kcal.
+      required: false
+      example: 540
+      selector:
+        number:
+          min: 0
+          max: 10000
           step: 0.1
           mode: box
 
@@ -139,6 +201,13 @@ add_calories:
       example: user1
       selector:
         text:
+    entry_name:
+      name: Entry name
+      description: Optional display name for this entry.
+      required: false
+      example: Dinner
+      selector:
+        text:
     calories:
       name: Calories
       description: Calories in kcal.
@@ -168,6 +237,13 @@ add_calorie_food:
       description: Optional fallback to target tracker by id.
       required: false
       example: user2
+      selector:
+        text:
+    entry_name:
+      name: Entry name
+      description: Optional display name for this entry.
+      required: false
+      example: Snack
       selector:
         text:
     food_grams:

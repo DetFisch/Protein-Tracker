@@ -20,6 +20,7 @@ from .const import (
     ATTR_CREATED_AT,
     ATTR_DATE,
     ATTR_ENTRY_ID,
+    ATTR_ENTRY_NAME,
     ATTR_GOAL,
     ATTR_HISTORY,
     ATTR_PROGRESS_PERCENT,
@@ -85,7 +86,7 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
                 ATTR_DATE: str(existing.get(ATTR_DATE, today)),
                 ATTR_HISTORY: existing.get(ATTR_HISTORY, []),
             }
-            changed = self._normalize_history(users[user_id]) or changed
+            changed = self._normalize_history(users[user_id], today) or changed
 
         # Remove users that are no longer configured.
         for existing_user_id in list(users):
@@ -120,7 +121,11 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         self.async_set_updated_data(self._public_data())
 
     async def async_add_entry(
-        self, user_id: str, protein: float = 0.0, calories: float = 0.0
+        self,
+        user_id: str,
+        protein: float = 0.0,
+        calories: float = 0.0,
+        entry_name: str | None = None,
     ) -> None:
         """Add both protein and calories in a single atomic history entry."""
         if float(protein) <= 0 and float(calories) <= 0:
@@ -135,26 +140,31 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
 
         # Record as ONE history entry
         history = user.setdefault(ATTR_HISTORY, [])
-        history.append(
-            {
-                ATTR_ENTRY_ID: uuid4().hex,
-                "protein": float(protein),
-                "calories": float(calories),
-                ATTR_CREATED_AT: dt_util.now().isoformat(),
-            }
-        )
+        entry = {
+            ATTR_ENTRY_ID: uuid4().hex,
+            "protein": float(protein),
+            "calories": float(calories),
+            ATTR_CREATED_AT: dt_util.now().isoformat(),
+        }
+        normalized_name = self._normalize_entry_name(entry_name)
+        if normalized_name:
+            entry[ATTR_ENTRY_NAME] = normalized_name
+        history.append(entry)
         await self._save()
         self.async_set_updated_data(self._public_data())
 
-    async def async_add_protein(self, user_id: str, grams: float) -> None:
+    async def async_add_protein(
+        self, user_id: str, grams: float, entry_name: str | None = None
+    ) -> None:
         """Add protein in grams for one user."""
-        await self.async_add_entry(user_id, protein=grams)
+        await self.async_add_entry(user_id, protein=grams, entry_name=entry_name)
 
     async def async_add_food(
         self,
         user_id: str,
         food_grams: float,
         protein_per_100g: float,
+        entry_name: str | None = None,
     ) -> float:
         """Calculate protein from food amount and add it."""
         if food_grams <= 0:
@@ -163,7 +173,7 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
             raise HomeAssistantError("protein_per_100g must be > 0")
 
         grams = (food_grams * protein_per_100g) / 100.0
-        await self.async_add_protein(user_id, grams)
+        await self.async_add_protein(user_id, grams, entry_name=entry_name)
         return grams
 
     async def async_set_goal(self, user_id: str, goal_grams: float) -> None:
@@ -178,15 +188,18 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         await self._save()
         self.async_set_updated_data(self._public_data())
 
-    async def async_add_calories(self, user_id: str, calories: float) -> None:
+    async def async_add_calories(
+        self, user_id: str, calories: float, entry_name: str | None = None
+    ) -> None:
         """Add calories for one user."""
-        await self.async_add_entry(user_id, calories=calories)
+        await self.async_add_entry(user_id, calories=calories, entry_name=entry_name)
 
     async def async_add_calorie_food(
         self,
         user_id: str,
         food_grams: float,
         calories_per_100g: float,
+        entry_name: str | None = None,
     ) -> float:
         """Calculate calories from food amount and add them."""
         if food_grams <= 0:
@@ -195,7 +208,7 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
             raise HomeAssistantError("calories_per_100g must be > 0")
 
         calories = (food_grams * calories_per_100g) / 100.0
-        await self.async_add_calories(user_id, calories)
+        await self.async_add_calories(user_id, calories, entry_name=entry_name)
         return calories
 
     async def async_set_calorie_goal(self, user_id: str, goal_calories: float) -> None:
@@ -232,7 +245,10 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         user = self._get_user(user_id)
         history = user.get(ATTR_HISTORY, [])
 
+        today = self._today_key()
         for index, entry in enumerate(history):
+            if not self._entry_is_today(entry, today):
+                continue
             if str(entry.get(ATTR_ENTRY_ID, "")) != str(entry_id):
                 continue
 
@@ -287,8 +303,8 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
 
         return changed
 
-    def _normalize_history(self, user: dict[str, Any]) -> bool:
-        """Ensure stored history entries have IDs for targeted deletion."""
+    def _normalize_history(self, user: dict[str, Any], today: str) -> bool:
+        """Keep only today's dated history entries and ensure they have IDs."""
         history = user.get(ATTR_HISTORY, [])
         if not isinstance(history, list):
             user[ATTR_HISTORY] = []
@@ -300,6 +316,9 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
             if not isinstance(entry, dict):
                 changed = True
                 continue
+            if not self._entry_is_today(entry, today):
+                changed = True
+                continue
 
             normalized_entry = {
                 ATTR_ENTRY_ID: str(entry.get(ATTR_ENTRY_ID) or uuid4().hex),
@@ -307,6 +326,9 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
                 "calories": float(entry.get("calories", 0.0)),
                 ATTR_CREATED_AT: str(entry.get(ATTR_CREATED_AT, "")),
             }
+            normalized_name = self._normalize_entry_name(entry.get(ATTR_ENTRY_NAME))
+            if normalized_name:
+                normalized_entry[ATTR_ENTRY_NAME] = normalized_name
             changed = changed or normalized_entry != entry
             normalized.append(normalized_entry)
 
@@ -315,6 +337,19 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
 
         user[ATTR_HISTORY] = normalized
         return changed
+
+    @staticmethod
+    def _entry_is_today(entry: dict[str, Any], today: str) -> bool:
+        """Return whether a stored entry has a creation date matching today."""
+        created_at = str(entry.get(ATTR_CREATED_AT, ""))
+        return len(created_at) >= 10 and created_at[:10] == today
+
+    @staticmethod
+    def _normalize_entry_name(entry_name: Any) -> str:
+        """Return a compact optional entry name safe for storage/display."""
+        if entry_name is None:
+            return ""
+        return " ".join(str(entry_name).split())[:80]
 
     async def _save(self) -> None:
         await self._store.async_save(self._data)
@@ -352,10 +387,12 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
                         ATTR_ENTRY_ID: str(entry.get(ATTR_ENTRY_ID, "")),
                         "protein": round(float(entry.get("protein", 0.0)), 2),
                         "calories": round(float(entry.get("calories", 0.0)), 2),
+                        ATTR_ENTRY_NAME: str(entry.get(ATTR_ENTRY_NAME, "")),
                         ATTR_CREATED_AT: str(entry.get(ATTR_CREATED_AT, "")),
                     }
                     for entry in user.get(ATTR_HISTORY, [])
                     if isinstance(entry, dict)
+                    and self._entry_is_today(entry, str(user[ATTR_DATE]))
                 ],
             }
 

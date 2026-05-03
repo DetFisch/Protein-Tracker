@@ -35,6 +35,7 @@ from .const import (
     FIELD_CALORIES_PER_100G,
     FIELD_ENTITY_ID,
     FIELD_ENTRY_ID,
+    FIELD_ENTRY_NAME,
     FIELD_FOOD_GRAMS,
     FIELD_GOAL_CALORIES,
     FIELD_GOAL_GRAMS,
@@ -92,6 +93,7 @@ SERVICE_SCHEMA_ADD_PROTEIN = vol.Schema(
     {
         vol.Optional(FIELD_USER_ID): cv.slug,
         vol.Optional(FIELD_ENTITY_ID): cv.entity_id,
+        vol.Optional(FIELD_ENTRY_NAME): cv.string,
         vol.Required(FIELD_GRAMS): vol.Coerce(float),
     }
 )
@@ -100,6 +102,7 @@ SERVICE_SCHEMA_ADD_ENTRY = vol.Schema(
     {
         vol.Optional(FIELD_USER_ID): cv.slug,
         vol.Optional(FIELD_ENTITY_ID): cv.entity_id,
+        vol.Optional(FIELD_ENTRY_NAME): cv.string,
         vol.Optional(FIELD_GRAMS, default=0.0): vol.Coerce(float),
         vol.Optional(FIELD_CALORIES, default=0.0): vol.Coerce(float),
     }
@@ -109,6 +112,7 @@ SERVICE_SCHEMA_ADD_FOOD = vol.Schema(
     {
         vol.Optional(FIELD_USER_ID): cv.slug,
         vol.Optional(FIELD_ENTITY_ID): cv.entity_id,
+        vol.Optional(FIELD_ENTRY_NAME): cv.string,
         vol.Required(FIELD_FOOD_GRAMS): vol.Coerce(float),
         vol.Required(FIELD_PROTEIN_PER_100G): vol.Coerce(float),
     }
@@ -118,6 +122,7 @@ SERVICE_SCHEMA_ADD_CALORIES = vol.Schema(
     {
         vol.Optional(FIELD_USER_ID): cv.slug,
         vol.Optional(FIELD_ENTITY_ID): cv.entity_id,
+        vol.Optional(FIELD_ENTRY_NAME): cv.string,
         vol.Required(FIELD_CALORIES): vol.Coerce(float),
     }
 )
@@ -126,6 +131,7 @@ SERVICE_SCHEMA_ADD_CALORIE_FOOD = vol.Schema(
     {
         vol.Optional(FIELD_USER_ID): cv.slug,
         vol.Optional(FIELD_ENTITY_ID): cv.entity_id,
+        vol.Optional(FIELD_ENTRY_NAME): cv.string,
         vol.Required(FIELD_FOOD_GRAMS): vol.Coerce(float),
         vol.Required(FIELD_CALORIES_PER_100G): vol.Coerce(float),
     }
@@ -377,6 +383,7 @@ async def _register_services(hass: HomeAssistant) -> None:
         await manager.async_add_protein(
             user_id,
             float(call.data[FIELD_GRAMS]),
+            entry_name=call.data.get(FIELD_ENTRY_NAME),
         )
 
     async def handle_add_entry(call: ServiceCall) -> None:
@@ -387,6 +394,7 @@ async def _register_services(hass: HomeAssistant) -> None:
             user_id,
             protein=float(call.data.get(FIELD_GRAMS, 0.0)),
             calories=float(call.data.get(FIELD_CALORIES, 0.0)),
+            entry_name=call.data.get(FIELD_ENTRY_NAME),
         )
 
     async def handle_add_food(call: ServiceCall) -> None:
@@ -397,6 +405,7 @@ async def _register_services(hass: HomeAssistant) -> None:
             user_id,
             float(call.data[FIELD_FOOD_GRAMS]),
             float(call.data[FIELD_PROTEIN_PER_100G]),
+            entry_name=call.data.get(FIELD_ENTRY_NAME),
         )
 
     async def handle_add_calories(call: ServiceCall) -> None:
@@ -406,6 +415,7 @@ async def _register_services(hass: HomeAssistant) -> None:
         await manager.async_add_calories(
             user_id,
             float(call.data[FIELD_CALORIES]),
+            entry_name=call.data.get(FIELD_ENTRY_NAME),
         )
 
     async def handle_add_calorie_food(call: ServiceCall) -> None:
@@ -416,6 +426,7 @@ async def _register_services(hass: HomeAssistant) -> None:
             user_id,
             float(call.data[FIELD_FOOD_GRAMS]),
             float(call.data[FIELD_CALORIES_PER_100G]),
+            entry_name=call.data.get(FIELD_ENTRY_NAME),
         )
 
     async def handle_set_goal(call: ServiceCall) -> None:
