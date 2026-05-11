@@ -1,4 +1,4 @@
-const PT_CARD_VERSION = "2.16.2"
+const PT_CARD_VERSION = "2.16.3"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
 const PT_ENTRY_PREVIEW_LIMIT = 3
@@ -412,6 +412,41 @@ class ProteinTrackerCard extends HTMLElement {
           align-items: end;
         }
 
+        .pt-field {
+          display: grid;
+          gap: 6px;
+          min-width: 0;
+        }
+
+        .pt-field span {
+          color: var(--secondary-text-color);
+          font-size: 0.85rem;
+          line-height: 1.2;
+        }
+
+        .pt-field input {
+          box-sizing: border-box;
+          width: 100%;
+          min-width: 0;
+          min-height: 48px;
+          border: 1px solid var(--divider-color);
+          border-radius: var(--ha-border-radius-md, 8px);
+          padding: 8px 12px;
+          background: var(--ha-color-form-background, var(--card-background-color));
+          color: var(--primary-text-color);
+          font: inherit;
+          outline: none;
+        }
+
+        .pt-field input:hover {
+          background: var(--ha-color-form-background-hover, var(--card-background-color));
+        }
+
+        .pt-field input:focus {
+          border-color: var(--primary-color);
+          box-shadow: 0 0 0 1px var(--primary-color);
+        }
+
         .field-row.double {
           grid-template-columns: 1fr 1fr auto;
         }
@@ -428,11 +463,54 @@ class ProteinTrackerCard extends HTMLElement {
           justify-self: end;
         }
 
+        .pt-button {
+          box-sizing: border-box;
+          min-height: 36px;
+          border: 1px solid transparent;
+          border-radius: var(--ha-border-radius-md, 8px);
+          padding: 0 14px;
+          background: transparent;
+          color: var(--primary-text-color);
+          font: inherit;
+          font-weight: 500;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+
+        .pt-button.brand {
+          background: var(--primary-color);
+          color: var(--text-primary-color, #fff);
+        }
+
+        .pt-button.outlined {
+          border-color: var(--divider-color);
+        }
+
+        .pt-button.danger {
+          color: var(--error-color);
+        }
+
+        .pt-button.danger.brand,
+        .pt-button.danger.filled {
+          background: var(--error-color);
+          color: var(--text-primary-color, #fff);
+        }
+
+        .pt-button:hover {
+          filter: brightness(0.96);
+        }
+
         .dialog-footer {
           display: flex;
           gap: 8px;
           align-items: center;
           flex-wrap: wrap;
+          padding-top: 4px;
+        }
+
+        .dialog-actions {
+          display: flex;
+          justify-content: flex-end;
           padding-top: 4px;
         }
 
@@ -507,6 +585,10 @@ class ProteinTrackerCard extends HTMLElement {
             justify-self: start;
           }
 
+          .pt-button.action-btn {
+            justify-self: stretch;
+          }
+
           .meta {
             flex-direction: column;
             gap: 4px;
@@ -570,44 +652,71 @@ class ProteinTrackerCard extends HTMLElement {
         <section class="dialog-section">
           <h4>Direkt eintragen</h4>
           <div class="field-row single">
-            <ha-textfield id="input-direct-name" type="text" label="Name (optional)"></ha-textfield>
+            <label class="pt-field">
+              <span>Name (optional)</span>
+              <input id="input-direct-name" type="text" autocomplete="off">
+            </label>
           </div>
           <div class="field-row double">
-            <ha-textfield id="input-direct-calories" type="number" step="0.1" min="0" label="Kalorien (kcal)"></ha-textfield>
-            <ha-textfield id="input-direct-protein" type="number" step="0.1" min="0" label="Protein (g)"></ha-textfield>
-            <ha-button id="btn-direct" class="action-btn" appearance="accent" variant="brand">Eintragen</ha-button>
+            <label class="pt-field">
+              <span>Kalorien (kcal)</span>
+              <input id="input-direct-calories" type="number" step="0.1" min="0" inputmode="decimal">
+            </label>
+            <label class="pt-field">
+              <span>Protein (g)</span>
+              <input id="input-direct-protein" type="number" step="0.1" min="0" inputmode="decimal">
+            </label>
+            <button id="btn-direct" class="pt-button brand action-btn" type="button">Eintragen</button>
           </div>
         </section>
 
         <section class="dialog-section">
           <h4>Über Essen berechnen</h4>
           <div class="field-row single">
-            <ha-textfield id="input-food-name" type="text" label="Name (optional)"></ha-textfield>
+            <label class="pt-field">
+              <span>Name (optional)</span>
+              <input id="input-food-name" type="text" autocomplete="off">
+            </label>
           </div>
           <div class="field-row multi">
-            <ha-textfield id="input-c100" type="number" step="0.1" min="0" label="Kcal / 100g"></ha-textfield>
-            <ha-textfield id="input-p100" type="number" step="0.1" min="0" label="Protein / 100g"></ha-textfield>
+            <label class="pt-field">
+              <span>Kcal / 100g</span>
+              <input id="input-c100" type="number" step="0.1" min="0" inputmode="decimal">
+            </label>
+            <label class="pt-field">
+              <span>Protein / 100g</span>
+              <input id="input-p100" type="number" step="0.1" min="0" inputmode="decimal">
+            </label>
           </div>
           <div class="field-row single">
-            <ha-textfield id="input-food" type="number" step="0.1" min="0" label="Essen (g)"></ha-textfield>
-            <ha-button id="btn-food" class="action-btn" appearance="accent" variant="brand">Eintragen</ha-button>
+            <label class="pt-field">
+              <span>Essen (g)</span>
+              <input id="input-food" type="number" step="0.1" min="0" inputmode="decimal">
+            </label>
+            <button id="btn-food" class="pt-button brand action-btn" type="button">Eintragen</button>
           </div>
         </section>
 
         <section class="dialog-section">
           <h4>Tagesziele</h4>
           <div class="field-row double">
-            <ha-textfield id="input-goal-calories" type="number" step="1" min="0" label="Kalorien-Ziel (kcal)"></ha-textfield>
-            <ha-textfield id="input-goal-protein" type="number" step="1" min="0" label="Protein-Ziel (g)"></ha-textfield>
-            <ha-button id="btn-goal" class="action-btn" appearance="accent" variant="brand">Speichern</ha-button>
+            <label class="pt-field">
+              <span>Kalorien-Ziel (kcal)</span>
+              <input id="input-goal-calories" type="number" step="1" min="0" inputmode="numeric">
+            </label>
+            <label class="pt-field">
+              <span>Protein-Ziel (g)</span>
+              <input id="input-goal-protein" type="number" step="1" min="0" inputmode="numeric">
+            </label>
+            <button id="btn-goal" class="pt-button brand action-btn" type="button">Speichern</button>
           </div>
         </section>
 
         <section class="dialog-section">
           <h4>Verwaltung</h4>
           <div class="dialog-footer">
-            <ha-button id="btn-edit-entries" appearance="outlined" variant="neutral">Einträge bearbeiten</ha-button>
-            <ha-button id="btn-reset" appearance="outlined" variant="danger">Einträge zurücksetzen</ha-button>
+            <button id="btn-edit-entries" class="pt-button outlined" type="button">Einträge bearbeiten</button>
+            <button id="btn-reset" class="pt-button outlined danger" type="button">Einträge zurücksetzen</button>
           </div>
           <div id="entries-panel" class="entries-panel" hidden>
             <div id="entries-summary" class="entries-summary"></div>
@@ -616,10 +725,10 @@ class ProteinTrackerCard extends HTMLElement {
         </section>
 
         <div id="dialog-status" class="status"></div>
-      </div>
 
-      <div slot="secondaryAction">
-        <ha-button id="btn-close" appearance="plain" variant="neutral">Schließen</ha-button>
+        <div class="dialog-actions">
+          <button id="btn-close" class="pt-button" type="button">Schließen</button>
+        </div>
       </div>
     `
 
@@ -851,7 +960,7 @@ class ProteinTrackerCard extends HTMLElement {
             <div class="entry-values">${this._escapeHtml(labelParts.join(" + ") || "0")}</div>
             <div class="entry-time">${this._escapeHtml(this._formatEntryTime(entry.created_at, entries.length - index - 1))}</div>
           </div>
-          <ha-button appearance="outlined" variant="danger" data-entry-id="${this._escapeHtml(entry.entry_id)}">Löschen</ha-button>
+          <button class="pt-button outlined danger" type="button" data-entry-id="${this._escapeHtml(entry.entry_id)}">Löschen</button>
         </div>
       `
     }).join("")
