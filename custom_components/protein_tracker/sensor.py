@@ -22,6 +22,7 @@ from .const import (
     ATTR_HISTORY,
     ATTR_PROGRESS_PERCENT,
     ATTR_REMAINING,
+    ATTR_TEMPLATES,
     ATTR_TRACKER_TYPE,
     ATTR_TODAY_TOTAL,
     ATTR_USER_ID,
@@ -105,6 +106,7 @@ class ProteinTodaySensor(CoordinatorEntity[ProteinTrackerManager], SensorEntity)
             ATTR_PROGRESS_PERCENT: state[ATTR_PROGRESS_PERCENT],
             ATTR_DATE: state[ATTR_DATE],
             ATTR_HISTORY: state[ATTR_HISTORY],
+            ATTR_TEMPLATES: state[ATTR_TEMPLATES],
         }
 
     @property
@@ -172,6 +174,7 @@ class CalorieTodaySensor(CoordinatorEntity[ProteinTrackerManager], SensorEntity)
             ATTR_PROGRESS_PERCENT: state[ATTR_CALORIES_PROGRESS_PERCENT],
             ATTR_DATE: state[ATTR_DATE],
             ATTR_HISTORY: state[ATTR_HISTORY],
+            ATTR_TEMPLATES: state[ATTR_TEMPLATES],
         }
 
     @property

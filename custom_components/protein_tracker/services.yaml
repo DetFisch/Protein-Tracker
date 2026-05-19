@@ -87,7 +87,7 @@ add_food:
 
 add_entry:
   name: Add Entry
-  description: Add consumed protein and calories in one entry.
+  description: Add consumed protein and calories in one entry. Named entries are saved as reusable templates.
   fields:
     entity_id:
       name: Tracker Entity

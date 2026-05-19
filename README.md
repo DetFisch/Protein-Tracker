@@ -8,6 +8,7 @@ Diese Lösung erstellt unabhängige Tracker-Instanzen (z. B. je Dashboard/Person
 - Zwei Eingabewegen je Bereich:
   - direkte Eingabe
   - Lebensmittelmenge + Nährwert pro 100g
+- Automatische Vorlagen: Benannte Einträge werden mit ihren Protein- und Kalorienwerten gespeichert und können im Popup wiederverwendet werden
 - Paralleler Nutzung für mehrere Instanzen
 
 Hinweis: Die Card zeigt den aktuellen Fortschritt fuer Protein und Kalorien. Den normalen Verlauf nutzt du ueber die Sensoren in Home Assistant (History/Verlauf-Ansicht). In der vergroesserten Card-Ansicht kannst du die heutigen Eintraege ueber `Eintraege bearbeiten` anzeigen und einzelne Eintraege gezielt loeschen.
@@ -30,7 +31,7 @@ Das Repository ist jetzt als HACS-Integration aufgebaut:
 
 1. Repository per HACS als `Integration` installieren oder `custom_components/protein_tracker` manuell nach `<HA_CONFIG>/custom_components/protein_tracker` kopieren.
 2. Lovelace Resource hinzufügen:
-   - URL: `/protein_tracker/protein-tracker-card.js?v=2.16.3`
+   - URL: `/protein_tracker/protein-tracker-card.js?v=2.16.4`
    - Typ: `module`
 
 3. Home Assistant neu starten.

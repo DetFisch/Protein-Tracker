@@ -25,6 +25,7 @@ from .const import (
     ATTR_HISTORY,
     ATTR_PROGRESS_PERCENT,
     ATTR_REMAINING,
+    ATTR_TEMPLATES,
     ATTR_TODAY_TOTAL,
     CONF_CALORIE_GOAL,
     CONF_GOAL,
@@ -85,8 +86,11 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
                 ATTR_CALORIES_TODAY_TOTAL: float(existing.get(ATTR_CALORIES_TODAY_TOTAL, 0.0)),
                 ATTR_DATE: str(existing.get(ATTR_DATE, today)),
                 ATTR_HISTORY: existing.get(ATTR_HISTORY, []),
+                ATTR_TEMPLATES: existing.get(ATTR_TEMPLATES, []),
             }
             changed = self._normalize_history(users[user_id], today) or changed
+            changed = self._normalize_templates(users[user_id]) or changed
+            changed = self._sync_missing_templates_from_history(users[user_id]) or changed
 
         # Remove users that are no longer configured.
         for existing_user_id in list(users):
@@ -149,6 +153,7 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         normalized_name = self._normalize_entry_name(entry_name)
         if normalized_name:
             entry[ATTR_ENTRY_NAME] = normalized_name
+            self._upsert_template(user, normalized_name, float(protein), float(calories))
         history.append(entry)
         await self._save()
         self.async_set_updated_data(self._public_data())
@@ -338,6 +343,112 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         user[ATTR_HISTORY] = normalized
         return changed
 
+    def _normalize_templates(self, user: dict[str, Any]) -> bool:
+        """Normalize persisted entry templates and deduplicate by name."""
+        templates = user.get(ATTR_TEMPLATES, [])
+        if not isinstance(templates, list):
+            user[ATTR_TEMPLATES] = []
+            return True
+
+        changed = False
+        by_name: dict[str, dict[str, Any]] = {}
+        for template in templates:
+            if not isinstance(template, dict):
+                changed = True
+                continue
+
+            normalized_name = self._normalize_entry_name(template.get(ATTR_ENTRY_NAME))
+            protein = float(template.get("protein", 0.0))
+            calories = float(template.get("calories", 0.0))
+            if not normalized_name or (protein <= 0 and calories <= 0):
+                changed = True
+                continue
+
+            normalized_template = {
+                ATTR_ENTRY_NAME: normalized_name,
+                "protein": protein,
+                "calories": calories,
+                ATTR_CREATED_AT: str(template.get(ATTR_CREATED_AT, "")),
+            }
+            by_name[self._template_key(normalized_name)] = normalized_template
+            changed = changed or normalized_template != template
+
+        normalized = sorted(by_name.values(), key=lambda item: str(item[ATTR_ENTRY_NAME]).casefold())
+        if normalized != templates:
+            changed = True
+
+        user[ATTR_TEMPLATES] = normalized
+        return changed
+
+    def _upsert_template(
+        self,
+        user: dict[str, Any],
+        entry_name: str,
+        protein: float,
+        calories: float,
+    ) -> None:
+        """Store the latest values for a named entry as a reusable template."""
+        if protein <= 0 and calories <= 0:
+            return
+
+        template = {
+            ATTR_ENTRY_NAME: entry_name,
+            "protein": float(protein),
+            "calories": float(calories),
+            ATTR_CREATED_AT: dt_util.now().isoformat(),
+        }
+        key = self._template_key(entry_name)
+        templates = [
+            existing
+            for existing in user.setdefault(ATTR_TEMPLATES, [])
+            if self._template_key(existing.get(ATTR_ENTRY_NAME, "")) != key
+        ]
+        templates.append(template)
+        user[ATTR_TEMPLATES] = sorted(
+            templates,
+            key=lambda item: str(item.get(ATTR_ENTRY_NAME, "")).casefold(),
+        )
+
+    def _sync_missing_templates_from_history(self, user: dict[str, Any]) -> bool:
+        """Create templates for named history entries that predate template support."""
+        existing_keys = {
+            self._template_key(template.get(ATTR_ENTRY_NAME, ""))
+            for template in user.get(ATTR_TEMPLATES, [])
+            if isinstance(template, dict)
+        }
+
+        changed = False
+        templates = list(user.get(ATTR_TEMPLATES, []))
+        for entry in reversed(user.get(ATTR_HISTORY, [])):
+            if not isinstance(entry, dict):
+                continue
+
+            normalized_name = self._normalize_entry_name(entry.get(ATTR_ENTRY_NAME))
+            key = self._template_key(normalized_name)
+            protein = float(entry.get("protein", 0.0))
+            calories = float(entry.get("calories", 0.0))
+            if not normalized_name or key in existing_keys or (protein <= 0 and calories <= 0):
+                continue
+
+            templates.append(
+                {
+                    ATTR_ENTRY_NAME: normalized_name,
+                    "protein": protein,
+                    "calories": calories,
+                    ATTR_CREATED_AT: str(entry.get(ATTR_CREATED_AT, "")),
+                }
+            )
+            existing_keys.add(key)
+            changed = True
+
+        if changed:
+            user[ATTR_TEMPLATES] = sorted(
+                templates,
+                key=lambda item: str(item.get(ATTR_ENTRY_NAME, "")).casefold(),
+            )
+
+        return changed
+
     @staticmethod
     def _entry_is_today(entry: dict[str, Any], today: str) -> bool:
         """Return whether a stored entry has a creation date matching today."""
@@ -350,6 +461,11 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         if entry_name is None:
             return ""
         return " ".join(str(entry_name).split())[:80]
+
+    @staticmethod
+    def _template_key(entry_name: Any) -> str:
+        """Return a case-insensitive key for matching templates by name."""
+        return " ".join(str(entry_name).split()).casefold()
 
     async def _save(self) -> None:
         await self._store.async_save(self._data)
@@ -393,6 +509,21 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
                     for entry in user.get(ATTR_HISTORY, [])
                     if isinstance(entry, dict)
                     and self._entry_is_today(entry, str(user[ATTR_DATE]))
+                ],
+                ATTR_TEMPLATES: [
+                    {
+                        ATTR_ENTRY_NAME: str(template.get(ATTR_ENTRY_NAME, "")),
+                        "protein": round(float(template.get("protein", 0.0)), 2),
+                        "calories": round(float(template.get("calories", 0.0)), 2),
+                        ATTR_CREATED_AT: str(template.get(ATTR_CREATED_AT, "")),
+                    }
+                    for template in user.get(ATTR_TEMPLATES, [])
+                    if isinstance(template, dict)
+                    and str(template.get(ATTR_ENTRY_NAME, ""))
+                    and (
+                        float(template.get("protein", 0.0)) > 0
+                        or float(template.get("calories", 0.0)) > 0
+                    )
                 ],
             }
 

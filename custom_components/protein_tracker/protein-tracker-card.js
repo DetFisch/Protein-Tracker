@@ -1,4 +1,4 @@
-const PT_CARD_VERSION = "2.16.3"
+const PT_CARD_VERSION = "2.16.4"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
 const PT_ENTRY_PREVIEW_LIMIT = 3
@@ -424,7 +424,8 @@ class ProteinTrackerCard extends HTMLElement {
           line-height: 1.2;
         }
 
-        .pt-field input {
+        .pt-field input,
+        .pt-field select {
           box-sizing: border-box;
           width: 100%;
           min-width: 0;
@@ -438,11 +439,13 @@ class ProteinTrackerCard extends HTMLElement {
           outline: none;
         }
 
-        .pt-field input:hover {
+        .pt-field input:hover,
+        .pt-field select:hover {
           background: var(--ha-color-form-background-hover, var(--card-background-color));
         }
 
-        .pt-field input:focus {
+        .pt-field input:focus,
+        .pt-field select:focus {
           border-color: var(--primary-color);
           box-shadow: 0 0 0 1px var(--primary-color);
         }
@@ -575,6 +578,12 @@ class ProteinTrackerCard extends HTMLElement {
           color: var(--error-color);
         }
 
+        .template-summary {
+          color: var(--secondary-text-color);
+          font-size: 0.85rem;
+          min-height: 1.2em;
+        }
+
         @media (max-width: 760px) {
           .field-row.double,
           .field-row.triple {
@@ -671,6 +680,18 @@ class ProteinTrackerCard extends HTMLElement {
         </section>
 
         <section class="dialog-section">
+          <h4>Vorlage verwenden</h4>
+          <div class="field-row single">
+            <label class="pt-field">
+              <span>Gespeicherter Eintrag</span>
+              <select id="input-template"></select>
+            </label>
+            <button id="btn-template" class="pt-button brand action-btn" type="button">Eintragen</button>
+          </div>
+          <div id="template-summary" class="template-summary"></div>
+        </section>
+
+        <section class="dialog-section">
           <h4>Über Essen berechnen</h4>
           <div class="field-row single">
             <label class="pt-field">
@@ -752,6 +773,8 @@ class ProteinTrackerCard extends HTMLElement {
 
   _attachDialogEvents() {
     this._dialog.querySelector("#btn-direct").addEventListener("click", () => this._handleAddDirect())
+    this._dialog.querySelector("#btn-template").addEventListener("click", () => this._handleAddTemplate())
+    this._dialog.querySelector("#input-template").addEventListener("change", () => this._renderTemplateSummary())
     this._dialog.querySelector("#btn-food").addEventListener("click", () => this._handleAddFood())
     this._dialog.querySelector("#btn-goal").addEventListener("click", () => this._handleSetGoals())
     this._dialog.querySelector("#btn-edit-entries").addEventListener("click", () => this._toggleEntries())
@@ -793,6 +816,7 @@ class ProteinTrackerCard extends HTMLElement {
 
     this._dialog.heading = this._config.name || PT_DEFAULT_TITLE
     this._syncDialogFields()
+    this._renderTemplates()
     this._renderEntries()
     this._setDialogStatus("", false)
 
@@ -1043,6 +1067,7 @@ class ProteinTrackerCard extends HTMLElement {
     this._renderMetric("protein", this._metricState("protein"))
     this._renderMetric("calories", this._metricState("calories"))
     this._syncDialogFields()
+    this._renderTemplates()
     this._renderEntries()
   }
 
@@ -1080,6 +1105,83 @@ class ProteinTrackerCard extends HTMLElement {
 
   _readOptionalText(input) {
     return String(input?.value || "").trim().replace(/\s+/g, " ").slice(0, 80)
+  }
+
+  _templates() {
+    const states = [
+      this._config.entity ? this._hass?.states?.[this._config.entity] : null,
+      this._config.calorie_entity ? this._hass?.states?.[this._config.calorie_entity] : null
+    ]
+
+    const byName = new Map()
+    for (const state of states) {
+      const templates = state?.attributes?.templates
+      if (!Array.isArray(templates)) {
+        continue
+      }
+
+      for (const template of templates) {
+        const name = String(template?.entry_name || "").trim()
+        const protein = Number.parseFloat(template?.protein) || 0
+        const calories = Number.parseFloat(template?.calories) || 0
+        if (!name || (protein <= 0 && calories <= 0)) {
+          continue
+        }
+        byName.set(name.toLocaleLowerCase(), { name, protein, calories })
+      }
+    }
+
+    return [...byName.values()].sort((left, right) => left.name.localeCompare(right.name))
+  }
+
+  _renderTemplates() {
+    if (!this._dialog) {
+      return
+    }
+
+    const select = this._dialog.querySelector("#input-template")
+    const button = this._dialog.querySelector("#btn-template")
+    if (!select || !button) {
+      return
+    }
+
+    const selectedName = select.value ? this._templates()?.[Number.parseInt(select.value, 10)]?.name : ""
+    const templates = this._templates()
+    select.innerHTML = templates.length
+      ? `<option value="">Vorlage wählen...</option>${templates.map((template, index) => (
+          `<option value="${index}">${this._escapeHtml(template.name)}</option>`
+        )).join("")}`
+      : `<option value="">Noch keine Vorlagen</option>`
+
+    const selectedIndex = templates.findIndex((template) => template.name === selectedName)
+    select.value = selectedIndex >= 0 ? String(selectedIndex) : ""
+    select.disabled = templates.length === 0
+    button.disabled = templates.length === 0
+    this._renderTemplateSummary()
+  }
+
+  _selectedTemplate() {
+    const select = this._dialog?.querySelector("#input-template")
+    const selectedIndex = Number.parseInt(select?.value || "", 10)
+    if (!Number.isInteger(selectedIndex)) {
+      return null
+    }
+    return this._templates()[selectedIndex] || null
+  }
+
+  _renderTemplateSummary() {
+    const summary = this._dialog?.querySelector("#template-summary")
+    if (!summary) {
+      return
+    }
+
+    const template = this._selectedTemplate()
+    if (!template) {
+      summary.textContent = "Benannte Einträge werden automatisch als Vorlage gespeichert."
+      return
+    }
+
+    summary.textContent = `${template.name}: ${template.calories.toFixed(0)} kcal / ${template.protein.toFixed(1)} g Protein`
   }
 
   async _callServiceRaw(metricKey, service, payload) {
@@ -1141,6 +1243,26 @@ class ProteinTrackerCard extends HTMLElement {
       this._dialog.querySelector("#input-direct-protein").value = ""
       this._dialog.querySelector("#input-direct-calories").value = ""
       this._dialog.querySelector("#input-direct-name").value = ""
+      this._setDialogStatus("", false)
+    } catch (error) {
+      this._setDialogStatus(`Fehler: ${error?.message || error}`, true)
+    }
+  }
+
+  async _handleAddTemplate() {
+    const template = this._selectedTemplate()
+    if (!template) {
+      this._setDialogStatus("Bitte eine Vorlage auswählen.", true)
+      return
+    }
+
+    try {
+      await this._callServiceRaw("protein", PT_METRICS.protein.combinedService, {
+        [PT_METRICS.protein.directField]: template.protein,
+        [PT_METRICS.calories.directField]: template.calories,
+        entry_name: template.name
+      })
+
       this._setDialogStatus("", false)
     } catch (error) {
       this._setDialogStatus(`Fehler: ${error?.message || error}`, true)
