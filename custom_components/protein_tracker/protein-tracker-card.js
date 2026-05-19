@@ -1,4 +1,4 @@
-const PT_CARD_VERSION = "2.16.4"
+const PT_CARD_VERSION = "2.16.5"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
 const PT_ENTRY_PREVIEW_LIMIT = 3
@@ -680,18 +680,6 @@ class ProteinTrackerCard extends HTMLElement {
         </section>
 
         <section class="dialog-section">
-          <h4>Vorlage verwenden</h4>
-          <div class="field-row single">
-            <label class="pt-field">
-              <span>Gespeicherter Eintrag</span>
-              <select id="input-template"></select>
-            </label>
-            <button id="btn-template" class="pt-button brand action-btn" type="button">Eintragen</button>
-          </div>
-          <div id="template-summary" class="template-summary"></div>
-        </section>
-
-        <section class="dialog-section">
           <h4>Über Essen berechnen</h4>
           <div class="field-row single">
             <label class="pt-field">
@@ -716,6 +704,18 @@ class ProteinTrackerCard extends HTMLElement {
             </label>
             <button id="btn-food" class="pt-button brand action-btn" type="button">Eintragen</button>
           </div>
+        </section>
+
+        <section class="dialog-section">
+          <h4>Vorlage verwenden</h4>
+          <div class="field-row single">
+            <label class="pt-field">
+              <span>Gespeicherter Eintrag</span>
+              <select id="input-template"></select>
+            </label>
+            <button id="btn-template" class="pt-button brand action-btn" type="button">Eintragen</button>
+          </div>
+          <div id="template-summary" class="template-summary"></div>
         </section>
 
         <section class="dialog-section">
