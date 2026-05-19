@@ -29,6 +29,7 @@ SERVICE_SET_CALORIE_GOAL = "set_calorie_goal"
 SERVICE_RESET_CALORIES = "reset_calories"
 SERVICE_UNDO = "undo_last"
 SERVICE_DELETE_ENTRY = "delete_entry"
+SERVICE_DELETE_TEMPLATE = "delete_template"
 
 ATTR_USER_ID = "user_id"
 ATTR_DATE = "date"

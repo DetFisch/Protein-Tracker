@@ -48,6 +48,7 @@ from .const import (
     SERVICE_ADD_FOOD,
     SERVICE_ADD_PROTEIN,
     SERVICE_DELETE_ENTRY,
+    SERVICE_DELETE_TEMPLATE,
     SERVICE_RESET_CALORIES,
     SERVICE_RESET_USER,
     SERVICE_SET_CALORIE_GOAL,
@@ -179,6 +180,14 @@ SERVICE_SCHEMA_DELETE_ENTRY = vol.Schema(
         vol.Optional(FIELD_USER_ID): cv.slug,
         vol.Optional(FIELD_ENTITY_ID): cv.entity_id,
         vol.Required(FIELD_ENTRY_ID): cv.string,
+    }
+)
+
+SERVICE_SCHEMA_DELETE_TEMPLATE = vol.Schema(
+    {
+        vol.Optional(FIELD_USER_ID): cv.slug,
+        vol.Optional(FIELD_ENTITY_ID): cv.entity_id,
+        vol.Required(FIELD_ENTRY_NAME): cv.string,
     }
 )
 
@@ -367,6 +376,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             SERVICE_RESET_CALORIES,
             SERVICE_UNDO,
             SERVICE_DELETE_ENTRY,
+            SERVICE_DELETE_TEMPLATE,
         ):
             if hass.services.has_service(DOMAIN, service):
                 hass.services.async_remove(DOMAIN, service)
@@ -471,6 +481,12 @@ async def _register_services(hass: HomeAssistant) -> None:
         manager = _get_manager_for_user_id(hass, user_id)
         await manager.async_delete_entry(user_id, str(call.data[FIELD_ENTRY_ID]))
 
+    async def handle_delete_template(call: ServiceCall) -> None:
+        _ensure_target(call.data)
+        user_id = _resolve_user_id(hass, call.data)
+        manager = _get_manager_for_user_id(hass, user_id)
+        await manager.async_delete_template(user_id, str(call.data[FIELD_ENTRY_NAME]))
+
     hass.services.async_register(
         DOMAIN,
         SERVICE_ADD_PROTEIN,
@@ -536,4 +552,10 @@ async def _register_services(hass: HomeAssistant) -> None:
         SERVICE_DELETE_ENTRY,
         handle_delete_entry,
         schema=SERVICE_SCHEMA_DELETE_ENTRY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_DELETE_TEMPLATE,
+        handle_delete_template,
+        schema=SERVICE_SCHEMA_DELETE_TEMPLATE,
     )

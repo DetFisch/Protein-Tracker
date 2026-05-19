@@ -1,4 +1,4 @@
-const PT_CARD_VERSION = "2.16.5"
+const PT_CARD_VERSION = "2.16.6"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
 const PT_ENTRY_PREVIEW_LIMIT = 3
@@ -737,11 +737,16 @@ class ProteinTrackerCard extends HTMLElement {
           <h4>Verwaltung</h4>
           <div class="dialog-footer">
             <button id="btn-edit-entries" class="pt-button outlined" type="button">Einträge bearbeiten</button>
+            <button id="btn-edit-templates" class="pt-button outlined" type="button">Vorlagen löschen</button>
             <button id="btn-reset" class="pt-button outlined danger" type="button">Einträge zurücksetzen</button>
           </div>
           <div id="entries-panel" class="entries-panel" hidden>
             <div id="entries-summary" class="entries-summary"></div>
             <div id="entries-list" class="entries-list"></div>
+          </div>
+          <div id="templates-panel" class="entries-panel" hidden>
+            <div id="templates-summary" class="entries-summary"></div>
+            <div id="templates-list" class="entries-list"></div>
           </div>
         </section>
 
@@ -778,6 +783,7 @@ class ProteinTrackerCard extends HTMLElement {
     this._dialog.querySelector("#btn-food").addEventListener("click", () => this._handleAddFood())
     this._dialog.querySelector("#btn-goal").addEventListener("click", () => this._handleSetGoals())
     this._dialog.querySelector("#btn-edit-entries").addEventListener("click", () => this._toggleEntries())
+    this._dialog.querySelector("#btn-edit-templates").addEventListener("click", () => this._toggleManageTemplates())
     this._dialog.querySelector("#btn-reset").addEventListener("click", () => this._handleResetToday())
     this._dialog.querySelector("#entries-list").addEventListener("click", (ev) => {
       const button = ev.target?.closest?.("[data-entry-id]")
@@ -787,6 +793,15 @@ class ProteinTrackerCard extends HTMLElement {
 
       ev.stopPropagation()
       this._handleDeleteEntry(button.dataset.entryId)
+    })
+    this._dialog.querySelector("#templates-list").addEventListener("click", (ev) => {
+      const button = ev.target?.closest?.("[data-template-name]")
+      if (!button) {
+        return
+      }
+
+      ev.stopPropagation()
+      this._handleDeleteTemplate(button.dataset.templateName)
     })
     
     this._dialog.querySelector("#btn-close").addEventListener("click", (ev) => {
@@ -817,6 +832,7 @@ class ProteinTrackerCard extends HTMLElement {
     this._dialog.heading = this._config.name || PT_DEFAULT_TITLE
     this._syncDialogFields()
     this._renderTemplates()
+    this._renderManageTemplates()
     this._renderEntries()
     this._setDialogStatus("", false)
 
@@ -995,6 +1011,55 @@ class ProteinTrackerCard extends HTMLElement {
     this._renderEntries()
   }
 
+  _renderManageTemplates() {
+    if (!this._dialog) {
+      return
+    }
+
+    const panel = this._dialog.querySelector("#templates-panel")
+    const summary = this._dialog.querySelector("#templates-summary")
+    const list = this._dialog.querySelector("#templates-list")
+    const editButton = this._dialog.querySelector("#btn-edit-templates")
+    const templates = this._templates()
+
+    panel.hidden = !this._templatesOpen
+    editButton.textContent = this._templatesOpen ? "Vorlagen ausblenden" : "Vorlagen löschen"
+
+    if (templates.length === 0) {
+      summary.textContent = "Es sind noch keine Vorlagen gespeichert."
+      list.innerHTML = ""
+      return
+    }
+
+    summary.textContent = `${templates.length} gespeicherte Vorlagen`
+    list.innerHTML = templates.map((template) => {
+      const labelParts = []
+
+      if (template.calories > 0) {
+        labelParts.push(`${template.calories.toFixed(0)} kcal`)
+      }
+
+      if (template.protein > 0) {
+        labelParts.push(`${template.protein.toFixed(1)} g Protein`)
+      }
+
+      return `
+        <div class="entry-row">
+          <div class="entry-main">
+            <div class="entry-name">${this._escapeHtml(template.name)}</div>
+            <div class="entry-values">${this._escapeHtml(labelParts.join(" + ") || "0")}</div>
+          </div>
+          <button class="pt-button outlined danger" type="button" data-template-name="${this._escapeHtml(template.name)}">Löschen</button>
+        </div>
+      `
+    }).join("")
+  }
+
+  _toggleManageTemplates() {
+    this._templatesOpen = !this._templatesOpen
+    this._renderManageTemplates()
+  }
+
   _metricState(metricKey) {
     const metric = PT_METRICS[metricKey]
     const entity = metricKey === "protein" ? this._config.entity : this._config.calorie_entity
@@ -1068,6 +1133,7 @@ class ProteinTrackerCard extends HTMLElement {
     this._renderMetric("calories", this._metricState("calories"))
     this._syncDialogFields()
     this._renderTemplates()
+    this._renderManageTemplates()
     this._renderEntries()
   }
 
@@ -1363,6 +1429,19 @@ class ProteinTrackerCard extends HTMLElement {
     try {
       await this._callServiceRaw("protein", "delete_entry", { entry_id: entryId })
       this._setDialogStatus("Eintrag gelöscht.", false)
+    } catch (error) {
+      this._setDialogStatus(`Fehler: ${error?.message || error}`, true)
+    }
+  }
+
+  async _handleDeleteTemplate(entryName) {
+    if (!entryName) {
+      return
+    }
+
+    try {
+      await this._callServiceRaw("protein", "delete_template", { entry_name: entryName })
+      this._setDialogStatus("Vorlage gelöscht.", false)
     } catch (error) {
       this._setDialogStatus(`Fehler: ${error?.message || error}`, true)
     }

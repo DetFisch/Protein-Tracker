@@ -274,6 +274,28 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
 
         raise HomeAssistantError("Entry not found")
 
+    async def async_delete_template(self, user_id: str, entry_name: str) -> None:
+        """Delete a reusable entry template by name."""
+        user = self._get_user(user_id)
+        normalized_name = self._normalize_entry_name(entry_name)
+        template_key = self._template_key(normalized_name)
+        if not template_key:
+            raise HomeAssistantError("Template name is required")
+
+        templates = user.get(ATTR_TEMPLATES, [])
+        kept_templates = [
+            template
+            for template in templates
+            if not isinstance(template, dict)
+            or self._template_key(template.get(ATTR_ENTRY_NAME, "")) != template_key
+        ]
+        if len(kept_templates) == len(templates):
+            raise HomeAssistantError("Template not found")
+
+        user[ATTR_TEMPLATES] = kept_templates
+        await self._save()
+        self.async_set_updated_data(self._public_data())
+
     async def async_reset_user(self, user_id: str) -> None:
         """Reset current-day protein for one user to 0."""
         self._rollover_if_needed(self._today_key())

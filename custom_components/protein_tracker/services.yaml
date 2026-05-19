@@ -362,3 +362,29 @@ delete_entry:
       example: 3f4e2c1a6b7844b4a0fd4d8f87d8b1c2
       selector:
         text:
+
+delete_template:
+  name: Delete Template
+  description: Remove one reusable named entry template.
+  fields:
+    entity_id:
+      name: Tracker Entity
+      description: Recommended. Any sensor or number entity of the tracker.
+      required: false
+      example: sensor.jon_protein
+      selector:
+        entity:
+    user_id:
+      name: Tracker ID
+      description: Optional fallback to target tracker by id.
+      required: false
+      example: user1
+      selector:
+        text:
+    entry_name:
+      name: Entry name
+      description: Name of the template to delete.
+      required: true
+      example: Breakfast
+      selector:
+        text:
