@@ -737,7 +737,7 @@ class ProteinTrackerCard extends HTMLElement {
           <h4>Verwaltung</h4>
           <div class="dialog-footer">
             <button id="btn-edit-entries" class="pt-button outlined" type="button">Einträge bearbeiten</button>
-            <button id="btn-edit-templates" class="pt-button outlined" type="button">Vorlagen löschen</button>
+            <button id="btn-edit-templates" class="pt-button outlined" type="button">Vorlagen bearbeiten</button>
             <button id="btn-reset" class="pt-button outlined danger" type="button">Einträge zurücksetzen</button>
           </div>
           <div id="entries-panel" class="entries-panel" hidden>
@@ -1023,7 +1023,7 @@ class ProteinTrackerCard extends HTMLElement {
     const templates = this._templates()
 
     panel.hidden = !this._templatesOpen
-    editButton.textContent = this._templatesOpen ? "Vorlagen ausblenden" : "Vorlagen löschen"
+    editButton.textContent = this._templatesOpen ? "Vorlagen ausblenden" : "Vorlagen bearbeiten"
 
     if (templates.length === 0) {
       summary.textContent = "Es sind noch keine Vorlagen gespeichert."
