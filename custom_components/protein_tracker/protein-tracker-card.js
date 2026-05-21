@@ -1,4 +1,4 @@
-const PT_CARD_VERSION = "2.16.6"
+const PT_CARD_VERSION = "2.16.7"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
 const PT_ENTRY_PREVIEW_LIMIT = 3
@@ -715,6 +715,12 @@ class ProteinTrackerCard extends HTMLElement {
             </label>
             <button id="btn-template" class="pt-button brand action-btn" type="button">Eintragen</button>
           </div>
+          <div class="field-row single" id="template-amount-row" hidden>
+            <label class="pt-field">
+              <span>Menge (g)</span>
+              <input id="input-template-amount" type="number" step="0.1" min="0" inputmode="decimal">
+            </label>
+          </div>
           <div id="template-summary" class="template-summary"></div>
         </section>
 
@@ -1035,12 +1041,22 @@ class ProteinTrackerCard extends HTMLElement {
     list.innerHTML = templates.map((template) => {
       const labelParts = []
 
-      if (template.calories > 0) {
-        labelParts.push(`${template.calories.toFixed(0)} kcal`)
-      }
+      if (template.type === "per_100g") {
+        if (template.caloriesPer100 > 0) {
+          labelParts.push(`${template.caloriesPer100.toFixed(0)} kcal / 100g`)
+        }
 
-      if (template.protein > 0) {
-        labelParts.push(`${template.protein.toFixed(1)} g Protein`)
+        if (template.proteinPer100 > 0) {
+          labelParts.push(`${template.proteinPer100.toFixed(1)} g Protein / 100g`)
+        }
+      } else {
+        if (template.calories > 0) {
+          labelParts.push(`${template.calories.toFixed(0)} kcal fix`)
+        }
+
+        if (template.protein > 0) {
+          labelParts.push(`${template.protein.toFixed(1)} g Protein fix`)
+        }
       }
 
       return `
@@ -1188,12 +1204,25 @@ class ProteinTrackerCard extends HTMLElement {
 
       for (const template of templates) {
         const name = String(template?.entry_name || "").trim()
+        const templateType = template?.template_type === "per_100g" ? "per_100g" : "fixed"
         const protein = Number.parseFloat(template?.protein) || 0
         const calories = Number.parseFloat(template?.calories) || 0
-        if (!name || (protein <= 0 && calories <= 0)) {
+        const proteinPer100 = Number.parseFloat(template?.protein_per_100g) || 0
+        const caloriesPer100 = Number.parseFloat(template?.calories_per_100g) || 0
+        const hasValues = templateType === "per_100g"
+          ? proteinPer100 > 0 || caloriesPer100 > 0
+          : protein > 0 || calories > 0
+        if (!name || !hasValues) {
           continue
         }
-        byName.set(name.toLocaleLowerCase(), { name, protein, calories })
+        byName.set(name.toLocaleLowerCase(), {
+          name,
+          type: templateType,
+          protein,
+          calories,
+          proteinPer100,
+          caloriesPer100
+        })
       }
     }
 
@@ -1237,6 +1266,7 @@ class ProteinTrackerCard extends HTMLElement {
 
   _renderTemplateSummary() {
     const summary = this._dialog?.querySelector("#template-summary")
+    const amountRow = this._dialog?.querySelector("#template-amount-row")
     if (!summary) {
       return
     }
@@ -1244,10 +1274,22 @@ class ProteinTrackerCard extends HTMLElement {
     const template = this._selectedTemplate()
     if (!template) {
       summary.textContent = "Benannte Einträge werden automatisch als Vorlage gespeichert."
+      if (amountRow) {
+        amountRow.hidden = true
+      }
       return
     }
 
-    summary.textContent = `${template.name}: ${template.calories.toFixed(0)} kcal / ${template.protein.toFixed(1)} g Protein`
+    if (amountRow) {
+      amountRow.hidden = template.type !== "per_100g"
+    }
+
+    if (template.type === "per_100g") {
+      summary.textContent = `${template.name}: ${template.caloriesPer100.toFixed(0)} kcal / ${template.proteinPer100.toFixed(1)} g Protein pro 100g`
+      return
+    }
+
+    summary.textContent = `${template.name}: ${template.calories.toFixed(0)} kcal / ${template.protein.toFixed(1)} g Protein fix`
   }
 
   async _callServiceRaw(metricKey, service, payload) {
@@ -1322,13 +1364,37 @@ class ProteinTrackerCard extends HTMLElement {
       return
     }
 
-    try {
-      await this._callServiceRaw("protein", PT_METRICS.protein.combinedService, {
-        [PT_METRICS.protein.directField]: template.protein,
-        [PT_METRICS.calories.directField]: template.calories,
-        entry_name: template.name
-      })
+    let protein = template.protein
+    let calories = template.calories
+    let templateAmount = null
+    if (template.type === "per_100g") {
+      const amount = this._readOptionalNumber(this._dialog.querySelector("#input-template-amount"))
+      if (!amount.provided || !amount.valid) {
+        this._setDialogStatus("Bitte eine gültige Menge > 0 eingeben.", true)
+        return
+      }
+      templateAmount = amount.value
+      protein = (amount.value * template.proteinPer100) / 100.0
+      calories = (amount.value * template.caloriesPer100) / 100.0
+    }
 
+    try {
+      const payload = {
+        [PT_METRICS.protein.directField]: protein,
+        [PT_METRICS.calories.directField]: calories,
+        entry_name: template.name
+      }
+      if (template.type === "per_100g") {
+        payload.food_grams = templateAmount
+        payload[PT_METRICS.protein.foodField] = template.proteinPer100
+        payload[PT_METRICS.calories.foodField] = template.caloriesPer100
+      }
+
+      await this._callServiceRaw("protein", PT_METRICS.protein.combinedService, payload)
+
+      if (template.type === "per_100g") {
+        this._dialog.querySelector("#input-template-amount").value = ""
+      }
       this._setDialogStatus("", false)
     } catch (error) {
       this._setDialogStatus(`Fehler: ${error?.message || error}`, true)
@@ -1362,7 +1428,10 @@ class ProteinTrackerCard extends HTMLElement {
 
       const payload = {
         [PT_METRICS.protein.directField]: pGrams,
-        [PT_METRICS.calories.directField]: cGrams
+        [PT_METRICS.calories.directField]: cGrams,
+        food_grams: food.value,
+        [PT_METRICS.protein.foodField]: proteinPer100.value || 0,
+        [PT_METRICS.calories.foodField]: caloriesPer100.value || 0
       }
       if (entryName) {
         payload.entry_name = entryName

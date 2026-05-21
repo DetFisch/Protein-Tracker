@@ -106,6 +106,9 @@ SERVICE_SCHEMA_ADD_ENTRY = vol.Schema(
         vol.Optional(FIELD_ENTRY_NAME): cv.string,
         vol.Optional(FIELD_GRAMS, default=0.0): vol.Coerce(float),
         vol.Optional(FIELD_CALORIES, default=0.0): vol.Coerce(float),
+        vol.Optional(FIELD_FOOD_GRAMS): vol.Coerce(float),
+        vol.Optional(FIELD_PROTEIN_PER_100G): vol.Coerce(float),
+        vol.Optional(FIELD_CALORIES_PER_100G): vol.Coerce(float),
     }
 )
 
@@ -405,6 +408,9 @@ async def _register_services(hass: HomeAssistant) -> None:
             protein=float(call.data.get(FIELD_GRAMS, 0.0)),
             calories=float(call.data.get(FIELD_CALORIES, 0.0)),
             entry_name=call.data.get(FIELD_ENTRY_NAME),
+            food_grams=call.data.get(FIELD_FOOD_GRAMS),
+            protein_per_100g=call.data.get(FIELD_PROTEIN_PER_100G),
+            calories_per_100g=call.data.get(FIELD_CALORIES_PER_100G),
         )
 
     async def handle_add_food(call: ServiceCall) -> None:

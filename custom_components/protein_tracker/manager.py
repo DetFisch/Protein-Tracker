@@ -26,7 +26,10 @@ from .const import (
     ATTR_PROGRESS_PERCENT,
     ATTR_REMAINING,
     ATTR_TEMPLATES,
+    ATTR_TEMPLATE_TYPE,
     ATTR_TODAY_TOTAL,
+    ATTR_PROTEIN_PER_100G,
+    ATTR_CALORIES_PER_100G,
     CONF_CALORIE_GOAL,
     CONF_GOAL,
     CONF_ID,
@@ -130,6 +133,9 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         protein: float = 0.0,
         calories: float = 0.0,
         entry_name: str | None = None,
+        food_grams: float | None = None,
+        protein_per_100g: float | None = None,
+        calories_per_100g: float | None = None,
     ) -> None:
         """Add both protein and calories in a single atomic history entry."""
         if float(protein) <= 0 and float(calories) <= 0:
@@ -153,7 +159,31 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         normalized_name = self._normalize_entry_name(entry_name)
         if normalized_name:
             entry[ATTR_ENTRY_NAME] = normalized_name
-            self._upsert_template(user, normalized_name, float(protein), float(calories))
+            if (
+                food_grams is not None
+                and float(food_grams) > 0
+                and (
+                    (protein_per_100g is not None and float(protein_per_100g) > 0)
+                    or (calories_per_100g is not None and float(calories_per_100g) > 0)
+                )
+            ):
+                self._upsert_template(
+                    user,
+                    normalized_name,
+                    float(protein),
+                    float(calories),
+                    template_type="per_100g",
+                    protein_per_100g=float(protein_per_100g or 0.0),
+                    calories_per_100g=float(calories_per_100g or 0.0),
+                )
+            else:
+                self._upsert_template(
+                    user,
+                    normalized_name,
+                    float(protein),
+                    float(calories),
+                    template_type="fixed",
+                )
         history.append(entry)
         await self._save()
         self.async_set_updated_data(self._public_data())
@@ -178,7 +208,13 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
             raise HomeAssistantError("protein_per_100g must be > 0")
 
         grams = (food_grams * protein_per_100g) / 100.0
-        await self.async_add_protein(user_id, grams, entry_name=entry_name)
+        await self.async_add_entry(
+            user_id,
+            protein=grams,
+            entry_name=entry_name,
+            food_grams=food_grams,
+            protein_per_100g=protein_per_100g,
+        )
         return grams
 
     async def async_set_goal(self, user_id: str, goal_grams: float) -> None:
@@ -213,7 +249,13 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
             raise HomeAssistantError("calories_per_100g must be > 0")
 
         calories = (food_grams * calories_per_100g) / 100.0
-        await self.async_add_calories(user_id, calories, entry_name=entry_name)
+        await self.async_add_entry(
+            user_id,
+            calories=calories,
+            entry_name=entry_name,
+            food_grams=food_grams,
+            calories_per_100g=calories_per_100g,
+        )
         return calories
 
     async def async_set_calorie_goal(self, user_id: str, goal_calories: float) -> None:
@@ -380,9 +422,18 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
                 continue
 
             normalized_name = self._normalize_entry_name(template.get(ATTR_ENTRY_NAME))
+            template_type = self._normalize_template_type(template.get(ATTR_TEMPLATE_TYPE))
             protein = float(template.get("protein", 0.0))
             calories = float(template.get("calories", 0.0))
-            if not normalized_name or (protein <= 0 and calories <= 0):
+            protein_per_100g = float(template.get(ATTR_PROTEIN_PER_100G, 0.0))
+            calories_per_100g = float(template.get(ATTR_CALORIES_PER_100G, 0.0))
+
+            if template_type == "per_100g":
+                is_empty = protein_per_100g <= 0 and calories_per_100g <= 0
+            else:
+                is_empty = protein <= 0 and calories <= 0
+
+            if not normalized_name or is_empty:
                 changed = True
                 continue
 
@@ -390,8 +441,13 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
                 ATTR_ENTRY_NAME: normalized_name,
                 "protein": protein,
                 "calories": calories,
+                ATTR_TEMPLATE_TYPE: template_type,
                 ATTR_CREATED_AT: str(template.get(ATTR_CREATED_AT, "")),
             }
+            if template_type == "per_100g":
+                normalized_template[ATTR_PROTEIN_PER_100G] = protein_per_100g
+                normalized_template[ATTR_CALORIES_PER_100G] = calories_per_100g
+
             by_name[self._template_key(normalized_name)] = normalized_template
             changed = changed or normalized_template != template
 
@@ -408,17 +464,29 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         entry_name: str,
         protein: float,
         calories: float,
+        template_type: str = "fixed",
+        protein_per_100g: float = 0.0,
+        calories_per_100g: float = 0.0,
     ) -> None:
         """Store the latest values for a named entry as a reusable template."""
-        if protein <= 0 and calories <= 0:
+        normalized_type = self._normalize_template_type(template_type)
+        if normalized_type == "per_100g":
+            if protein_per_100g <= 0 and calories_per_100g <= 0:
+                return
+        elif protein <= 0 and calories <= 0:
             return
 
         template = {
             ATTR_ENTRY_NAME: entry_name,
             "protein": float(protein),
             "calories": float(calories),
+            ATTR_TEMPLATE_TYPE: normalized_type,
             ATTR_CREATED_AT: dt_util.now().isoformat(),
         }
+        if normalized_type == "per_100g":
+            template[ATTR_PROTEIN_PER_100G] = float(protein_per_100g)
+            template[ATTR_CALORIES_PER_100G] = float(calories_per_100g)
+
         key = self._template_key(entry_name)
         templates = [
             existing
@@ -457,6 +525,7 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
                     ATTR_ENTRY_NAME: normalized_name,
                     "protein": protein,
                     "calories": calories,
+                    ATTR_TEMPLATE_TYPE: "fixed",
                     ATTR_CREATED_AT: str(entry.get(ATTR_CREATED_AT, "")),
                 }
             )
@@ -488,6 +557,11 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
     def _template_key(entry_name: Any) -> str:
         """Return a case-insensitive key for matching templates by name."""
         return " ".join(str(entry_name).split()).casefold()
+
+    @staticmethod
+    def _normalize_template_type(template_type: Any) -> str:
+        """Return a known template type."""
+        return "per_100g" if str(template_type) == "per_100g" else "fixed"
 
     async def _save(self) -> None:
         await self._store.async_save(self._data)
@@ -537,6 +611,15 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
                         ATTR_ENTRY_NAME: str(template.get(ATTR_ENTRY_NAME, "")),
                         "protein": round(float(template.get("protein", 0.0)), 2),
                         "calories": round(float(template.get("calories", 0.0)), 2),
+                        ATTR_TEMPLATE_TYPE: self._normalize_template_type(
+                            template.get(ATTR_TEMPLATE_TYPE)
+                        ),
+                        ATTR_PROTEIN_PER_100G: round(
+                            float(template.get(ATTR_PROTEIN_PER_100G, 0.0)), 2
+                        ),
+                        ATTR_CALORIES_PER_100G: round(
+                            float(template.get(ATTR_CALORIES_PER_100G, 0.0)), 2
+                        ),
                         ATTR_CREATED_AT: str(template.get(ATTR_CREATED_AT, "")),
                     }
                     for template in user.get(ATTR_TEMPLATES, [])
@@ -545,6 +628,8 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
                     and (
                         float(template.get("protein", 0.0)) > 0
                         or float(template.get("calories", 0.0)) > 0
+                        or float(template.get(ATTR_PROTEIN_PER_100G, 0.0)) > 0
+                        or float(template.get(ATTR_CALORIES_PER_100G, 0.0)) > 0
                     )
                 ],
             }
