@@ -1,4 +1,4 @@
-const PT_CARD_VERSION = "2.16.7"
+const PT_CARD_VERSION = "2.16.9"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
 const PT_ENTRY_PREVIEW_LIMIT = 3
@@ -717,7 +717,7 @@ class ProteinTrackerCard extends HTMLElement {
           </div>
           <div class="field-row single" id="template-amount-row" hidden>
             <label class="pt-field">
-              <span>Menge (g)</span>
+              <span id="template-amount-label">Menge</span>
               <input id="input-template-amount" type="number" step="0.1" min="0" inputmode="decimal">
             </label>
           </div>
@@ -1051,11 +1051,11 @@ class ProteinTrackerCard extends HTMLElement {
         }
       } else {
         if (template.calories > 0) {
-          labelParts.push(`${template.calories.toFixed(0)} kcal fix`)
+          labelParts.push(`${template.calories.toFixed(0)} kcal pro Stück`)
         }
 
         if (template.protein > 0) {
-          labelParts.push(`${template.protein.toFixed(1)} g Protein fix`)
+          labelParts.push(`${template.protein.toFixed(1)} g Protein pro Stück`)
         }
       }
 
@@ -1267,6 +1267,7 @@ class ProteinTrackerCard extends HTMLElement {
   _renderTemplateSummary() {
     const summary = this._dialog?.querySelector("#template-summary")
     const amountRow = this._dialog?.querySelector("#template-amount-row")
+    const amountLabel = this._dialog?.querySelector("#template-amount-label")
     if (!summary) {
       return
     }
@@ -1281,7 +1282,11 @@ class ProteinTrackerCard extends HTMLElement {
     }
 
     if (amountRow) {
-      amountRow.hidden = template.type !== "per_100g"
+      amountRow.hidden = false
+    }
+
+    if (amountLabel) {
+      amountLabel.textContent = template.type === "per_100g" ? "Menge (g)" : "Menge (Anzahl)"
     }
 
     if (template.type === "per_100g") {
@@ -1289,7 +1294,7 @@ class ProteinTrackerCard extends HTMLElement {
       return
     }
 
-    summary.textContent = `${template.name}: ${template.calories.toFixed(0)} kcal / ${template.protein.toFixed(1)} g Protein fix`
+    summary.textContent = `${template.name}: ${template.calories.toFixed(0)} kcal / ${template.protein.toFixed(1)} g Protein pro Stück`
   }
 
   async _callServiceRaw(metricKey, service, payload) {
@@ -1364,16 +1369,16 @@ class ProteinTrackerCard extends HTMLElement {
       return
     }
 
-    let protein = template.protein
-    let calories = template.calories
-    let templateAmount = null
+    const amount = this._readOptionalNumber(this._dialog.querySelector("#input-template-amount"))
+    if (!amount.provided || !amount.valid) {
+      const label = template.type === "per_100g" ? "Menge > 0" : "Anzahl > 0"
+      this._setDialogStatus(`Bitte eine gültige ${label} eingeben.`, true)
+      return
+    }
+
+    let protein = template.protein * amount.value
+    let calories = template.calories * amount.value
     if (template.type === "per_100g") {
-      const amount = this._readOptionalNumber(this._dialog.querySelector("#input-template-amount"))
-      if (!amount.provided || !amount.valid) {
-        this._setDialogStatus("Bitte eine gültige Menge > 0 eingeben.", true)
-        return
-      }
-      templateAmount = amount.value
       protein = (amount.value * template.proteinPer100) / 100.0
       calories = (amount.value * template.caloriesPer100) / 100.0
     }
@@ -1385,16 +1390,14 @@ class ProteinTrackerCard extends HTMLElement {
         entry_name: template.name
       }
       if (template.type === "per_100g") {
-        payload.food_grams = templateAmount
+        payload.food_grams = amount.value
         payload[PT_METRICS.protein.foodField] = template.proteinPer100
         payload[PT_METRICS.calories.foodField] = template.caloriesPer100
       }
 
       await this._callServiceRaw("protein", PT_METRICS.protein.combinedService, payload)
 
-      if (template.type === "per_100g") {
-        this._dialog.querySelector("#input-template-amount").value = ""
-      }
+      this._dialog.querySelector("#input-template-amount").value = ""
       this._setDialogStatus("", false)
     } catch (error) {
       this._setDialogStatus(`Fehler: ${error?.message || error}`, true)
