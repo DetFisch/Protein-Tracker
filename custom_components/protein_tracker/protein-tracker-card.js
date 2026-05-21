@@ -1,4 +1,4 @@
-const PT_CARD_VERSION = "2.16.9"
+const PT_CARD_VERSION = "2.16.10"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
 const PT_ENTRY_PREVIEW_LIMIT = 3
@@ -1268,6 +1268,7 @@ class ProteinTrackerCard extends HTMLElement {
     const summary = this._dialog?.querySelector("#template-summary")
     const amountRow = this._dialog?.querySelector("#template-amount-row")
     const amountLabel = this._dialog?.querySelector("#template-amount-label")
+    const amountInput = this._dialog?.querySelector("#input-template-amount")
     if (!summary) {
       return
     }
@@ -1294,6 +1295,9 @@ class ProteinTrackerCard extends HTMLElement {
       return
     }
 
+    if (amountInput && !String(amountInput.value || "").trim()) {
+      amountInput.value = "1"
+    }
     summary.textContent = `${template.name}: ${template.calories.toFixed(0)} kcal / ${template.protein.toFixed(1)} g Protein pro Stück`
   }
 
