@@ -1,4 +1,4 @@
-const PT_CARD_VERSION = "2.16.10"
+const PT_CARD_VERSION = "2.16.11"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
 const PT_ENTRY_PREVIEW_LIMIT = 3
@@ -1240,7 +1240,9 @@ class ProteinTrackerCard extends HTMLElement {
       return
     }
 
-    const selectedName = select.value ? this._templates()?.[Number.parseInt(select.value, 10)]?.name : ""
+    const previousTemplate = this._selectedTemplate()
+    const selectedName = previousTemplate?.name || ""
+    const selectedType = previousTemplate?.type || ""
     const templates = this._templates()
     select.innerHTML = templates.length
       ? `<option value="">Vorlage wählen...</option>${templates.map((template, index) => (
@@ -1250,6 +1252,10 @@ class ProteinTrackerCard extends HTMLElement {
 
     const selectedIndex = templates.findIndex((template) => template.name === selectedName)
     select.value = selectedIndex >= 0 ? String(selectedIndex) : ""
+    if (selectedIndex >= 0) {
+      this._lastTemplateType = selectedType
+      this._lastTemplateName = selectedName
+    }
     select.disabled = templates.length === 0
     button.disabled = templates.length === 0
     this._renderTemplateSummary()
@@ -1279,9 +1285,15 @@ class ProteinTrackerCard extends HTMLElement {
       if (amountRow) {
         amountRow.hidden = true
       }
+      if (amountInput) {
+        amountInput.value = ""
+      }
+      this._lastTemplateType = ""
+      this._lastTemplateName = ""
       return
     }
 
+    const templateChanged = this._lastTemplateName !== template.name || this._lastTemplateType !== template.type
     if (amountRow) {
       amountRow.hidden = false
     }
@@ -1291,13 +1303,20 @@ class ProteinTrackerCard extends HTMLElement {
     }
 
     if (template.type === "per_100g") {
+      if (amountInput && templateChanged) {
+        amountInput.value = ""
+      }
+      this._lastTemplateType = template.type
+      this._lastTemplateName = template.name
       summary.textContent = `${template.name}: ${template.caloriesPer100.toFixed(0)} kcal / ${template.proteinPer100.toFixed(1)} g Protein pro 100g`
       return
     }
 
-    if (amountInput && !String(amountInput.value || "").trim()) {
+    if (amountInput && (templateChanged || !String(amountInput.value || "").trim())) {
       amountInput.value = "1"
     }
+    this._lastTemplateType = template.type
+    this._lastTemplateName = template.name
     summary.textContent = `${template.name}: ${template.calories.toFixed(0)} kcal / ${template.protein.toFixed(1)} g Protein pro Stück`
   }
 
