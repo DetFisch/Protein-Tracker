@@ -36,11 +36,14 @@ from .const import (
     FIELD_ENTITY_ID,
     FIELD_ENTRY_ID,
     FIELD_ENTRY_NAME,
+    FIELD_FOOD_PERCENT,
     FIELD_FOOD_GRAMS,
     FIELD_GOAL_CALORIES,
     FIELD_GOAL_GRAMS,
     FIELD_GRAMS,
     FIELD_PROTEIN_PER_100G,
+    FIELD_TOTAL_CALORIES,
+    FIELD_TOTAL_PROTEIN,
     FIELD_USER_ID,
     SERVICE_ADD_CALORIE_FOOD,
     SERVICE_ADD_CALORIES,
@@ -107,8 +110,11 @@ SERVICE_SCHEMA_ADD_ENTRY = vol.Schema(
         vol.Optional(FIELD_GRAMS, default=0.0): vol.Coerce(float),
         vol.Optional(FIELD_CALORIES, default=0.0): vol.Coerce(float),
         vol.Optional(FIELD_FOOD_GRAMS): vol.Coerce(float),
+        vol.Optional(FIELD_FOOD_PERCENT): vol.Coerce(float),
         vol.Optional(FIELD_PROTEIN_PER_100G): vol.Coerce(float),
         vol.Optional(FIELD_CALORIES_PER_100G): vol.Coerce(float),
+        vol.Optional(FIELD_TOTAL_PROTEIN): vol.Coerce(float),
+        vol.Optional(FIELD_TOTAL_CALORIES): vol.Coerce(float),
     }
 )
 
@@ -409,8 +415,11 @@ async def _register_services(hass: HomeAssistant) -> None:
             calories=float(call.data.get(FIELD_CALORIES, 0.0)),
             entry_name=call.data.get(FIELD_ENTRY_NAME),
             food_grams=call.data.get(FIELD_FOOD_GRAMS),
+            food_percent=call.data.get(FIELD_FOOD_PERCENT),
             protein_per_100g=call.data.get(FIELD_PROTEIN_PER_100G),
             calories_per_100g=call.data.get(FIELD_CALORIES_PER_100G),
+            total_protein=call.data.get(FIELD_TOTAL_PROTEIN),
+            total_calories=call.data.get(FIELD_TOTAL_CALORIES),
         )
 
     async def handle_add_food(call: ServiceCall) -> None:

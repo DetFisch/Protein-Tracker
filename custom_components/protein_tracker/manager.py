@@ -134,8 +134,11 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         calories: float = 0.0,
         entry_name: str | None = None,
         food_grams: float | None = None,
+        food_percent: float | None = None,
         protein_per_100g: float | None = None,
         calories_per_100g: float | None = None,
+        total_protein: float | None = None,
+        total_calories: float | None = None,
     ) -> None:
         """Add both protein and calories in a single atomic history entry."""
         if float(protein) <= 0 and float(calories) <= 0:
@@ -160,6 +163,21 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         if normalized_name:
             entry[ATTR_ENTRY_NAME] = normalized_name
             if (
+                food_percent is not None
+                and float(food_percent) > 0
+                and (
+                    (total_protein is not None and float(total_protein) > 0)
+                    or (total_calories is not None and float(total_calories) > 0)
+                )
+            ):
+                self._upsert_template(
+                    user,
+                    normalized_name,
+                    float(total_protein or 0.0),
+                    float(total_calories or 0.0),
+                    template_type="percent",
+                )
+            elif (
                 food_grams is not None
                 and float(food_grams) > 0
                 and (
@@ -561,7 +579,11 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
     @staticmethod
     def _normalize_template_type(template_type: Any) -> str:
         """Return a known template type."""
-        return "per_100g" if str(template_type) == "per_100g" else "fixed"
+        if str(template_type) == "per_100g":
+            return "per_100g"
+        if str(template_type) == "percent":
+            return "percent"
+        return "fixed"
 
     async def _save(self) -> None:
         await self._store.async_save(self._data)

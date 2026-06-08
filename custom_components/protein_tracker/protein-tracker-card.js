@@ -1,4 +1,4 @@
-const PT_CARD_VERSION = "2.16.11"
+const PT_CARD_VERSION = "2.16.12"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
 const PT_ENTRY_PREVIEW_LIMIT = 3
@@ -406,6 +406,43 @@ class ProteinTrackerCard extends HTMLElement {
           color: var(--primary-text-color);
         }
 
+        .section-heading {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+        }
+
+        .mode-toggle {
+          display: inline-flex;
+          border: 1px solid var(--divider-color);
+          border-radius: var(--ha-border-radius-md, 8px);
+          overflow: hidden;
+          flex: 0 0 auto;
+        }
+
+        .mode-toggle button {
+          min-width: 36px;
+          min-height: 30px;
+          border: 0;
+          border-right: 1px solid var(--divider-color);
+          padding: 0 10px;
+          background: transparent;
+          color: var(--secondary-text-color);
+          font: inherit;
+          font-weight: 600;
+          cursor: pointer;
+        }
+
+        .mode-toggle button:last-child {
+          border-right: 0;
+        }
+
+        .mode-toggle button[aria-pressed="true"] {
+          background: var(--primary-color);
+          color: var(--text-primary-color, #fff);
+        }
+
         .field-row {
           display: grid;
           gap: 12px;
@@ -680,7 +717,13 @@ class ProteinTrackerCard extends HTMLElement {
         </section>
 
         <section class="dialog-section">
-          <h4>Über Essen berechnen</h4>
+          <div class="section-heading">
+            <h4>Über Essen berechnen</h4>
+            <div class="mode-toggle" aria-label="Berechnungsmodus">
+              <button id="btn-food-mode-grams" type="button" aria-pressed="true">g</button>
+              <button id="btn-food-mode-percent" type="button" aria-pressed="false">%</button>
+            </div>
+          </div>
           <div class="field-row single">
             <label class="pt-field">
               <span>Name (optional)</span>
@@ -689,17 +732,17 @@ class ProteinTrackerCard extends HTMLElement {
           </div>
           <div class="field-row multi">
             <label class="pt-field">
-              <span>Kcal / 100g</span>
+              <span id="food-calories-label">Kcal / 100g</span>
               <input id="input-c100" type="number" step="0.1" min="0" inputmode="decimal">
             </label>
             <label class="pt-field">
-              <span>Protein / 100g</span>
+              <span id="food-protein-label">Protein / 100g</span>
               <input id="input-p100" type="number" step="0.1" min="0" inputmode="decimal">
             </label>
           </div>
           <div class="field-row single">
             <label class="pt-field">
-              <span>Essen (g)</span>
+              <span id="food-amount-label">Essen (g)</span>
               <input id="input-food" type="number" step="0.1" min="0" inputmode="decimal">
             </label>
             <button id="btn-food" class="pt-button brand action-btn" type="button">Eintragen</button>
@@ -787,6 +830,8 @@ class ProteinTrackerCard extends HTMLElement {
     this._dialog.querySelector("#btn-template").addEventListener("click", () => this._handleAddTemplate())
     this._dialog.querySelector("#input-template").addEventListener("change", () => this._renderTemplateSummary())
     this._dialog.querySelector("#btn-food").addEventListener("click", () => this._handleAddFood())
+    this._dialog.querySelector("#btn-food-mode-grams").addEventListener("click", () => this._setFoodMode("grams"))
+    this._dialog.querySelector("#btn-food-mode-percent").addEventListener("click", () => this._setFoodMode("percent"))
     this._dialog.querySelector("#btn-goal").addEventListener("click", () => this._handleSetGoals())
     this._dialog.querySelector("#btn-edit-entries").addEventListener("click", () => this._toggleEntries())
     this._dialog.querySelector("#btn-edit-templates").addEventListener("click", () => this._toggleManageTemplates())
@@ -1049,6 +1094,14 @@ class ProteinTrackerCard extends HTMLElement {
         if (template.proteinPer100 > 0) {
           labelParts.push(`${template.proteinPer100.toFixed(1)} g Protein / 100g`)
         }
+      } else if (template.type === "percent") {
+        if (template.calories > 0) {
+          labelParts.push(`${template.calories.toFixed(0)} kcal gesamt`)
+        }
+
+        if (template.protein > 0) {
+          labelParts.push(`${template.protein.toFixed(1)} g Protein gesamt`)
+        }
       } else {
         if (template.calories > 0) {
           labelParts.push(`${template.calories.toFixed(0)} kcal pro Stück`)
@@ -1158,6 +1211,7 @@ class ProteinTrackerCard extends HTMLElement {
       return
     }
 
+    this._renderFoodMode()
     this._updateSensorPreview()
 
     const proteinGoalState = this._metricState("protein")
@@ -1189,6 +1243,47 @@ class ProteinTrackerCard extends HTMLElement {
     return String(input?.value || "").trim().replace(/\s+/g, " ").slice(0, 80)
   }
 
+  _setFoodMode(mode, { clear = true } = {}) {
+    const normalizedMode = mode === "percent" ? "percent" : "grams"
+    if (this._foodMode === normalizedMode) {
+      return
+    }
+
+    this._foodMode = normalizedMode
+    if (clear && this._dialog) {
+      this._dialog.querySelector("#input-c100").value = ""
+      this._dialog.querySelector("#input-p100").value = ""
+      this._dialog.querySelector("#input-food").value = ""
+    }
+    this._renderFoodMode()
+  }
+
+  _renderFoodMode() {
+    if (!this._dialog) {
+      return
+    }
+
+    const mode = this._foodMode === "percent" ? "percent" : "grams"
+    const gramsButton = this._dialog.querySelector("#btn-food-mode-grams")
+    const percentButton = this._dialog.querySelector("#btn-food-mode-percent")
+    const caloriesLabel = this._dialog.querySelector("#food-calories-label")
+    const proteinLabel = this._dialog.querySelector("#food-protein-label")
+    const amountLabel = this._dialog.querySelector("#food-amount-label")
+
+    gramsButton?.setAttribute("aria-pressed", mode === "grams" ? "true" : "false")
+    percentButton?.setAttribute("aria-pressed", mode === "percent" ? "true" : "false")
+
+    if (caloriesLabel) {
+      caloriesLabel.textContent = mode === "percent" ? "Kcal" : "Kcal / 100g"
+    }
+    if (proteinLabel) {
+      proteinLabel.textContent = mode === "percent" ? "Protein" : "Protein / 100g"
+    }
+    if (amountLabel) {
+      amountLabel.textContent = mode === "percent" ? "Anteil Essen (%)" : "Essen (g)"
+    }
+  }
+
   _templates() {
     const states = [
       this._config.entity ? this._hass?.states?.[this._config.entity] : null,
@@ -1204,7 +1299,7 @@ class ProteinTrackerCard extends HTMLElement {
 
       for (const template of templates) {
         const name = String(template?.entry_name || "").trim()
-        const templateType = template?.template_type === "per_100g" ? "per_100g" : "fixed"
+        const templateType = ["per_100g", "percent"].includes(template?.template_type) ? template.template_type : "fixed"
         const protein = Number.parseFloat(template?.protein) || 0
         const calories = Number.parseFloat(template?.calories) || 0
         const proteinPer100 = Number.parseFloat(template?.protein_per_100g) || 0
@@ -1299,7 +1394,11 @@ class ProteinTrackerCard extends HTMLElement {
     }
 
     if (amountLabel) {
-      amountLabel.textContent = template.type === "per_100g" ? "Menge (g)" : "Menge (Anzahl)"
+      amountLabel.textContent = template.type === "per_100g"
+        ? "Menge (g)"
+        : template.type === "percent"
+          ? "Anteil Essen (%)"
+          : "Menge (Anzahl)"
     }
 
     if (template.type === "per_100g") {
@@ -1309,6 +1408,16 @@ class ProteinTrackerCard extends HTMLElement {
       this._lastTemplateType = template.type
       this._lastTemplateName = template.name
       summary.textContent = `${template.name}: ${template.caloriesPer100.toFixed(0)} kcal / ${template.proteinPer100.toFixed(1)} g Protein pro 100g`
+      return
+    }
+
+    if (template.type === "percent") {
+      if (amountInput && templateChanged) {
+        amountInput.value = ""
+      }
+      this._lastTemplateType = template.type
+      this._lastTemplateName = template.name
+      summary.textContent = `${template.name}: ${template.calories.toFixed(0)} kcal / ${template.protein.toFixed(1)} g Protein gesamt`
       return
     }
 
@@ -1394,7 +1503,11 @@ class ProteinTrackerCard extends HTMLElement {
 
     const amount = this._readOptionalNumber(this._dialog.querySelector("#input-template-amount"))
     if (!amount.provided || !amount.valid) {
-      const label = template.type === "per_100g" ? "Menge > 0" : "Anzahl > 0"
+      const label = template.type === "per_100g"
+        ? "Menge > 0"
+        : template.type === "percent"
+          ? "Anteil > 0"
+          : "Anzahl > 0"
       this._setDialogStatus(`Bitte eine gültige ${label} eingeben.`, true)
       return
     }
@@ -1404,6 +1517,9 @@ class ProteinTrackerCard extends HTMLElement {
     if (template.type === "per_100g") {
       protein = (amount.value * template.proteinPer100) / 100.0
       calories = (amount.value * template.caloriesPer100) / 100.0
+    } else if (template.type === "percent") {
+      protein = (amount.value * template.protein) / 100.0
+      calories = (amount.value * template.calories) / 100.0
     }
 
     try {
@@ -1416,6 +1532,10 @@ class ProteinTrackerCard extends HTMLElement {
         payload.food_grams = amount.value
         payload[PT_METRICS.protein.foodField] = template.proteinPer100
         payload[PT_METRICS.calories.foodField] = template.caloriesPer100
+      } else if (template.type === "percent") {
+        payload.food_percent = amount.value
+        payload.total_protein = template.protein
+        payload.total_calories = template.calories
       }
 
       await this._callServiceRaw("protein", PT_METRICS.protein.combinedService, payload)
@@ -1429,35 +1549,56 @@ class ProteinTrackerCard extends HTMLElement {
 
   async _handleAddFood() {
     const food = this._readOptionalNumber(this._dialog.querySelector("#input-food"))
-    const proteinPer100 = this._readOptionalNumber(this._dialog.querySelector("#input-p100"))
-    const caloriesPer100 = this._readOptionalNumber(this._dialog.querySelector("#input-c100"))
+    const proteinInput = this._readOptionalNumber(this._dialog.querySelector("#input-p100"))
+    const caloriesInput = this._readOptionalNumber(this._dialog.querySelector("#input-c100"))
     const entryName = this._readOptionalText(this._dialog.querySelector("#input-food-name"))
+    const percentMode = this._foodMode === "percent"
 
     if (!food.provided || !food.valid) {
-      this._setDialogStatus("Bitte eine gültige Essensmenge > 0 eingeben.", true)
+      this._setDialogStatus(
+        percentMode
+          ? "Bitte einen gültigen Essensanteil > 0 eingeben."
+          : "Bitte eine gültige Essensmenge > 0 eingeben.",
+        true
+      )
       return
     }
 
-    if (!proteinPer100.provided && !caloriesPer100.provided) {
-      this._setDialogStatus("Bitte Protein / 100g oder Kcal / 100g eingeben.", true)
+    if (!proteinInput.provided && !caloriesInput.provided) {
+      this._setDialogStatus(
+        percentMode
+          ? "Bitte Protein oder Kcal für das ganze Essen eingeben."
+          : "Bitte Protein / 100g oder Kcal / 100g eingeben.",
+        true
+      )
       return
     }
 
-    if ((proteinPer100.provided && !proteinPer100.valid) || (caloriesPer100.provided && !caloriesPer100.valid)) {
+    if ((proteinInput.provided && !proteinInput.valid) || (caloriesInput.provided && !caloriesInput.valid)) {
       this._setDialogStatus("Bitte nur Werte > 0 eingeben.", true)
       return
     }
 
     try {
-      const pGrams = proteinPer100.provided ? (food.value * proteinPer100.value) / 100.0 : 0
-      const cGrams = caloriesPer100.provided ? (food.value * caloriesPer100.value) / 100.0 : 0
+      const pGrams = percentMode
+        ? (food.value * (proteinInput.value || 0)) / 100.0
+        : proteinInput.provided ? (food.value * proteinInput.value) / 100.0 : 0
+      const cGrams = percentMode
+        ? (food.value * (caloriesInput.value || 0)) / 100.0
+        : caloriesInput.provided ? (food.value * caloriesInput.value) / 100.0 : 0
 
       const payload = {
         [PT_METRICS.protein.directField]: pGrams,
         [PT_METRICS.calories.directField]: cGrams,
-        food_grams: food.value,
-        [PT_METRICS.protein.foodField]: proteinPer100.value || 0,
-        [PT_METRICS.calories.foodField]: caloriesPer100.value || 0
+      }
+      if (percentMode) {
+        payload.food_percent = food.value
+        payload.total_protein = proteinInput.value || 0
+        payload.total_calories = caloriesInput.value || 0
+      } else {
+        payload.food_grams = food.value
+        payload[PT_METRICS.protein.foodField] = proteinInput.value || 0
+        payload[PT_METRICS.calories.foodField] = caloriesInput.value || 0
       }
       if (entryName) {
         payload.entry_name = entryName

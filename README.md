@@ -7,8 +7,8 @@ Diese Lösung erstellt unabhängige Tracker-Instanzen (z. B. je Dashboard/Person
 - Laufenden Tageswerten mit täglichem Reset um 00:00
 - Zwei Eingabewegen je Bereich:
   - direkte Eingabe
-  - Lebensmittelmenge + Nährwert pro 100g
-- Automatische Vorlagen: Benannte direkte Einträge werden fix gespeichert; benannte 100g-Einträge werden als skalierbare Vorlagen gespeichert und können im Popup mit neuer Menge wiederverwendet werden
+  - Lebensmittelmenge + Nährwert pro 100g oder Anteil eines ganzen Essens in Prozent
+- Automatische Vorlagen: Benannte direkte Einträge werden fix gespeichert; benannte 100g- und Prozent-Einträge werden als skalierbare Vorlagen gespeichert und können im Popup mit neuer Menge wiederverwendet werden
 - Paralleler Nutzung für mehrere Instanzen
 
 Hinweis: Die Card zeigt den aktuellen Fortschritt fuer Protein und Kalorien. Den normalen Verlauf nutzt du ueber die Sensoren in Home Assistant (History/Verlauf-Ansicht). In der vergroesserten Card-Ansicht kannst du die heutigen Eintraege ueber `Eintraege bearbeiten` anzeigen und einzelne Eintraege gezielt loeschen.
@@ -31,7 +31,7 @@ Das Repository ist jetzt als HACS-Integration aufgebaut:
 
 1. Repository per HACS als `Integration` installieren oder `custom_components/protein_tracker` manuell nach `<HA_CONFIG>/custom_components/protein_tracker` kopieren.
 2. Lovelace Resource hinzufügen:
-   - URL: `/protein_tracker/protein-tracker-card.js?v=2.16.11`
+   - URL: `/protein_tracker/protein-tracker-card.js?v=2.16.12`
    - Typ: `module`
 
 3. Home Assistant neu starten.
@@ -77,7 +77,7 @@ Jeder Service akzeptiert:
 Services:
 - `protein_tracker.add_protein` (`grams`, optional `entry_name`)
 - `protein_tracker.add_food` (`food_grams`, `protein_per_100g`, optional `entry_name`)
-- `protein_tracker.add_entry` (`grams`, `calories`, optional `entry_name`; optional `food_grams`, `protein_per_100g`, `calories_per_100g` fuer skalierbare Vorlagen)
+- `protein_tracker.add_entry` (`grams`, `calories`, optional `entry_name`; optional `food_grams`, `protein_per_100g`, `calories_per_100g` fuer 100g-Vorlagen; optional `food_percent`, `total_protein`, `total_calories` fuer Prozent-Vorlagen)
 - `protein_tracker.set_goal` (`goal_grams`)
 - `protein_tracker.reset_user`
 - `protein_tracker.undo_last`
