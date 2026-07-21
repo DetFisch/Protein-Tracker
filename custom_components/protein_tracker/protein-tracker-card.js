@@ -1,4 +1,4 @@
-const PT_CARD_VERSION = "2.16.12"
+const PT_CARD_VERSION = "2.16.13"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
 const PT_ENTRY_PREVIEW_LIMIT = 3
@@ -1335,23 +1335,35 @@ class ProteinTrackerCard extends HTMLElement {
       return
     }
 
-    const previousTemplate = this._selectedTemplate()
-    const selectedName = previousTemplate?.name || ""
-    const selectedType = previousTemplate?.type || ""
     const templates = this._templates()
-    select.innerHTML = templates.length
-      ? `<option value="">Vorlage wählen...</option>${templates.map((template, index) => (
-          `<option value="${index}">${this._escapeHtml(template.name)}</option>`
-        )).join("")}`
-      : `<option value="">Noch keine Vorlagen</option>`
+    const optionNames = templates.map((template) => template.name)
+    const optionsChanged = !Array.isArray(this._templateOptionNames)
+      || optionNames.length !== this._templateOptionNames.length
+      || optionNames.some((name, index) => name !== this._templateOptionNames[index])
 
-    const selectedIndex = templates.findIndex((template) => template.name === selectedName)
-    select.value = selectedIndex >= 0 ? String(selectedIndex) : ""
-    if (selectedIndex >= 0) {
-      this._lastTemplateType = selectedType
-      this._lastTemplateName = selectedName
+    if (optionsChanged) {
+      const previousIndex = Number.parseInt(select.value || "", 10)
+      const selectedName = Number.isInteger(previousIndex)
+        ? this._templateOptionNames?.[previousIndex] || ""
+        : ""
+
+      // Replacing options while iOS has its native picker open resets the
+      // picker's scroll position. Only touch the option DOM when it changed.
+      select.innerHTML = templates.length
+        ? `<option value="">Vorlage wählen...</option>${templates.map((template, index) => (
+            `<option value="${index}">${this._escapeHtml(template.name)}</option>`
+          )).join("")}`
+        : `<option value="">Noch keine Vorlagen</option>`
+
+      const selectedIndex = optionNames.indexOf(selectedName)
+      select.value = selectedIndex >= 0 ? String(selectedIndex) : ""
+      this._templateOptionNames = optionNames
     }
-    select.disabled = templates.length === 0
+
+    const disabled = templates.length === 0
+    if (select.disabled !== disabled) {
+      select.disabled = disabled
+    }
     button.disabled = templates.length === 0
     this._renderTemplateSummary()
   }
@@ -1362,7 +1374,14 @@ class ProteinTrackerCard extends HTMLElement {
     if (!Number.isInteger(selectedIndex)) {
       return null
     }
-    return this._templates()[selectedIndex] || null
+
+    const templates = this._templates()
+    const selectedName = this._templateOptionNames?.[selectedIndex]
+    if (selectedName) {
+      return templates.find((template) => template.name === selectedName) || null
+    }
+
+    return templates[selectedIndex] || null
   }
 
   _renderTemplateSummary() {
