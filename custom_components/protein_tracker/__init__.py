@@ -44,6 +44,7 @@ from .const import (
     FIELD_PROTEIN_PER_100G,
     FIELD_TOTAL_CALORIES,
     FIELD_TOTAL_PROTEIN,
+    FIELD_UPDATE_TEMPLATE,
     FIELD_USER_ID,
     SERVICE_ADD_CALORIE_FOOD,
     SERVICE_ADD_CALORIES,
@@ -115,6 +116,7 @@ SERVICE_SCHEMA_ADD_ENTRY = vol.Schema(
         vol.Optional(FIELD_CALORIES_PER_100G): vol.Coerce(float),
         vol.Optional(FIELD_TOTAL_PROTEIN): vol.Coerce(float),
         vol.Optional(FIELD_TOTAL_CALORIES): vol.Coerce(float),
+        vol.Optional(FIELD_UPDATE_TEMPLATE, default=True): cv.boolean,
     }
 )
 
@@ -420,6 +422,7 @@ async def _register_services(hass: HomeAssistant) -> None:
             calories_per_100g=call.data.get(FIELD_CALORIES_PER_100G),
             total_protein=call.data.get(FIELD_TOTAL_PROTEIN),
             total_calories=call.data.get(FIELD_TOTAL_CALORIES),
+            update_template=call.data.get(FIELD_UPDATE_TEMPLATE, True),
         )
 
     async def handle_add_food(call: ServiceCall) -> None:

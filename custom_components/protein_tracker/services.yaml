@@ -110,6 +110,13 @@ add_entry:
       example: Breakfast
       selector:
         text:
+    update_template:
+      name: Update template
+      description: Whether a named entry should create or replace its reusable template. Disable this when logging a scaled use of an existing template.
+      required: false
+      default: true
+      selector:
+        boolean:
     grams:
       name: Protein grams
       description: Protein amount in grams.

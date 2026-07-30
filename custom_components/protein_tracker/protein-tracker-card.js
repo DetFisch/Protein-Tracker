@@ -1,4 +1,4 @@
-const PT_CARD_VERSION = "2.16.13"
+const PT_CARD_VERSION = "2.16.14"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
 const PT_ENTRY_PREVIEW_LIMIT = 3
@@ -1545,7 +1545,8 @@ class ProteinTrackerCard extends HTMLElement {
       const payload = {
         [PT_METRICS.protein.directField]: protein,
         [PT_METRICS.calories.directField]: calories,
-        entry_name: template.name
+        entry_name: template.name,
+        update_template: false
       }
       if (template.type === "per_100g") {
         payload.food_grams = amount.value

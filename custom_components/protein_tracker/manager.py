@@ -139,6 +139,7 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         calories_per_100g: float | None = None,
         total_protein: float | None = None,
         total_calories: float | None = None,
+        update_template: bool = True,
     ) -> None:
         """Add both protein and calories in a single atomic history entry."""
         if float(protein) <= 0 and float(calories) <= 0:
@@ -162,6 +163,8 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         normalized_name = self._normalize_entry_name(entry_name)
         if normalized_name:
             entry[ATTR_ENTRY_NAME] = normalized_name
+
+        if normalized_name and update_template:
             if (
                 food_percent is not None
                 and float(food_percent) > 0
