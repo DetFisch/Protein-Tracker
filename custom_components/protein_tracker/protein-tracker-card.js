@@ -1,4 +1,4 @@
-const PT_CARD_VERSION = "2.16.14"
+const PT_CARD_VERSION = "2.16.15"
 const PT_DEFAULT_TITLE = "Protein Tracker"
 const PT_PROGRESS_HEIGHT = 32
 const PT_ENTRY_PREVIEW_LIMIT = 3
@@ -1000,6 +1000,36 @@ class ProteinTrackerCard extends HTMLElement {
     return `${time} Uhr`
   }
 
+  _formatEntryAmount(entry) {
+    const amounts = [
+      { value: entry?.servings, unit: "Stück" },
+      { value: entry?.food_grams, unit: "g" },
+      { value: entry?.food_percent, unit: "%" }
+    ]
+
+    for (const amount of amounts) {
+      const value = Number.parseFloat(amount.value)
+      if (!Number.isFinite(value) || value <= 0) {
+        continue
+      }
+
+      return `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${amount.unit}`
+    }
+
+    return ""
+  }
+
+  _formatEntryTitle(entry) {
+    const entryName = String(entry?.entry_name || "").trim()
+    const entryAmount = this._formatEntryAmount(entry)
+
+    if (entryName && entryAmount) {
+      return `${entryName} (${entryAmount})`
+    }
+
+    return entryName || entryAmount
+  }
+
   _renderEntries() {
     if (!this._dialog) {
       return
@@ -1024,16 +1054,16 @@ class ProteinTrackerCard extends HTMLElement {
     const previewText = newestFirst.slice(0, PT_ENTRY_PREVIEW_LIMIT).map((entry) => {
       const protein = Number.parseFloat(entry.protein) || 0
       const calories = Number.parseFloat(entry.calories) || 0
-      const entryName = String(entry.entry_name || "").trim()
+      const entryTitle = this._formatEntryTitle(entry)
       const values = `${calories.toFixed(0)} kcal / ${protein.toFixed(1)} g`
-      return entryName ? `${entryName}: ${values}` : values
+      return entryTitle ? `${entryTitle}: ${values}` : values
     }).join(" | ")
 
     summary.textContent = `${entries.length} Einträge heute${previewText ? `: ${previewText}` : ""}`
     list.innerHTML = newestFirst.map((entry, index) => {
       const protein = Number.parseFloat(entry.protein) || 0
       const calories = Number.parseFloat(entry.calories) || 0
-      const entryName = String(entry.entry_name || "").trim()
+      const entryTitle = this._formatEntryTitle(entry)
       const labelParts = []
 
       if (calories > 0) {
@@ -1047,7 +1077,7 @@ class ProteinTrackerCard extends HTMLElement {
       return `
         <div class="entry-row">
           <div class="entry-main">
-            ${entryName ? `<div class="entry-name">${this._escapeHtml(entryName)}</div>` : ""}
+            ${entryTitle ? `<div class="entry-name">${this._escapeHtml(entryTitle)}</div>` : ""}
             <div class="entry-values">${this._escapeHtml(labelParts.join(" + ") || "0")}</div>
             <div class="entry-time">${this._escapeHtml(this._formatEntryTime(entry.created_at, entries.length - index - 1))}</div>
           </div>
@@ -1556,6 +1586,8 @@ class ProteinTrackerCard extends HTMLElement {
         payload.food_percent = amount.value
         payload.total_protein = template.protein
         payload.total_calories = template.calories
+      } else {
+        payload.servings = amount.value
       }
 
       await this._callServiceRaw("protein", PT_METRICS.protein.combinedService, payload)

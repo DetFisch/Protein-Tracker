@@ -38,6 +38,9 @@ from .const import (
     DEFAULT_CALORIE_GOAL,
     DEFAULT_GOAL,
     DOMAIN,
+    FIELD_FOOD_GRAMS,
+    FIELD_FOOD_PERCENT,
+    FIELD_SERVINGS,
     STORAGE_KEY,
     STORAGE_VERSION,
 )
@@ -133,6 +136,7 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         protein: float = 0.0,
         calories: float = 0.0,
         entry_name: str | None = None,
+        servings: float | None = None,
         food_grams: float | None = None,
         food_percent: float | None = None,
         protein_per_100g: float | None = None,
@@ -163,6 +167,14 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
         normalized_name = self._normalize_entry_name(entry_name)
         if normalized_name:
             entry[ATTR_ENTRY_NAME] = normalized_name
+
+        for amount_field, amount in (
+            (FIELD_SERVINGS, servings),
+            (FIELD_FOOD_GRAMS, food_grams),
+            (FIELD_FOOD_PERCENT, food_percent),
+        ):
+            if amount is not None and float(amount) > 0:
+                entry[amount_field] = float(amount)
 
         if normalized_name and update_template:
             if (
@@ -419,6 +431,10 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
             normalized_name = self._normalize_entry_name(entry.get(ATTR_ENTRY_NAME))
             if normalized_name:
                 normalized_entry[ATTR_ENTRY_NAME] = normalized_name
+            for amount_field in (FIELD_SERVINGS, FIELD_FOOD_GRAMS, FIELD_FOOD_PERCENT):
+                amount = float(entry.get(amount_field, 0.0))
+                if amount > 0:
+                    normalized_entry[amount_field] = amount
             changed = changed or normalized_entry != entry
             normalized.append(normalized_entry)
 
@@ -624,6 +640,9 @@ class ProteinTrackerManager(DataUpdateCoordinator[dict[str, Any]]):
                         ATTR_ENTRY_ID: str(entry.get(ATTR_ENTRY_ID, "")),
                         "protein": round(float(entry.get("protein", 0.0)), 2),
                         "calories": round(float(entry.get("calories", 0.0)), 2),
+                        FIELD_SERVINGS: round(float(entry.get(FIELD_SERVINGS, 0.0)), 2),
+                        FIELD_FOOD_GRAMS: round(float(entry.get(FIELD_FOOD_GRAMS, 0.0)), 2),
+                        FIELD_FOOD_PERCENT: round(float(entry.get(FIELD_FOOD_PERCENT, 0.0)), 2),
                         ATTR_ENTRY_NAME: str(entry.get(ATTR_ENTRY_NAME, "")),
                         ATTR_CREATED_AT: str(entry.get(ATTR_CREATED_AT, "")),
                     }
